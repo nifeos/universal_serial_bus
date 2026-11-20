@@ -1,0 +1,29 @@
+[package]
+name = "fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+universal_serial_bus = { path = ".." }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "universal_serial_bus_configuration"
+path = "fuzz_targets/universal_serial_bus_configuration.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "universal_serial_bus_boot_report_changes"
+path = "fuzz_targets/universal_serial_bus_boot_report_changes.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,19 @@
+Falsifies `usb::verification::the_configuration_walk_is_total_and_accepts_only_an_interrupt_in`.
+
+The defect: the endpoint filter stops checking the direction bit, so an interrupt OUT endpoint (the LED
+endpoint some keyboards carry) is returned as the keyboard's input endpoint.
+
+Expected to fail: the harness's `assert!(k.endpoint & 0x80 != 0, "an IN endpoint")`.
+
+diff --git a/src/descriptor.rs b/src/descriptor.rs
+--- a/src/descriptor.rs
++++ b/src/descriptor.rs
+@@ -281,7 +281,7 @@
+                 if let Some(interface) = candidate {
+                     let endpoint_number_and_direction = d[2] & 0x8f;
+                     let interrupt = d[3] & 0x3 == 0x3;
+-                    let inbound = endpoint_number_and_direction & 0x80 != 0;
++                    let inbound = true;
+                     let number = endpoint_number_and_direction & 0x0f;
+                     let maximum_packet_bytes = u16::from_le_bytes([d[4], d[5]]) & 0x07ff;
+                     if interrupt && inbound && number != 0 {

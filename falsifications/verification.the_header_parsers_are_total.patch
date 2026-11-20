@@ -1,0 +1,20 @@
+Falsifies `usb::verification::the_header_parsers_are_total`.
+
+The defect: `DeviceDescriptor::parse` loses its length check and indexes `bytes[0]` of whatever it is handed, so an
+empty or short descriptor from the device is an out-of-bounds read.
+
+Expected to fail: the bounds check on `bytes[0]` in `DeviceDescriptor::parse`.
+
+diff --git a/src/descriptor.rs b/src/descriptor.rs
+--- a/src/descriptor.rs
++++ b/src/descriptor.rs
+@@ -91,9 +91,6 @@
+     /// bytes, and [`Refusal::NotThatDescriptor`] for the wrong type or a `bLength` shorter than
+     /// the layout.
+     pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
+-        if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
+-            return Err(Refusal::Truncated);
+-        }
+         if (bytes[0] as usize) < DEVICE_DESCRIPTOR_BYTES || bytes[1] != DEVICE {
+             return Err(Refusal::NotThatDescriptor);
+         }
