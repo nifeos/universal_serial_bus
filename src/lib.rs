@@ -40,7 +40,6 @@
 //!   Caps Lock or Num Lock state and builds no request that sets a keyboard's LEDs.
 //!
 
-
 #[doc(alias = "usb")]
 pub mod boot_keyboard;
 #[doc(alias = "usb")]
