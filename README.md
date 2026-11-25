@@ -1,9 +1,9 @@
 # universal_serial_bus
 
-[![check](https://github.com/nifeos/universal_serial_bus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nifeos/universal_serial_bus/actions/workflows/ci.yml?query=branch%3Amain)
-[![proofs](https://github.com/nifeos/universal_serial_bus/actions/workflows/proofs.yml/badge.svg?branch=main)](https://github.com/nifeos/universal_serial_bus/actions/workflows/proofs.yml?query=branch%3Amain)
-[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/nifeos/universal_serial_bus#license)
-[![minimum Rust version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://github.com/nifeos/universal_serial_bus/blob/main/Cargo.toml)
+[![check](https://github.com/partsfoundry/universal_serial_bus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/partsfoundry/universal_serial_bus/actions/workflows/ci.yml?query=branch%3Amain)
+[![proofs](https://github.com/partsfoundry/universal_serial_bus/actions/workflows/proofs.yml/badge.svg?branch=main)](https://github.com/partsfoundry/universal_serial_bus/actions/workflows/proofs.yml?query=branch%3Amain)
+[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/partsfoundry/universal_serial_bus#license)
+[![minimum Rust version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://github.com/partsfoundry/universal_serial_bus/blob/main/Cargo.toml)
 
 The host side of a Universal Serial Bus (USB) boot keyboard, as pure computation: what a device
 says about itself, what a host asks it, and what a boot report means. Every byte this crate parses
