@@ -57,13 +57,14 @@ const MODIFIER_CODES: [u16; 8] = [
     126, // 0xe7 Right GUI: KEY_RIGHTMETA
 ];
 
-/// **One boot report**: the modifier bitmap and the six key slots.
+/// **One boot report**: the modifier bitmap and the six key slots. Its fields are private, so every
+/// value is one [`BootReport::parse`] would accept: no key slot holds an error usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BootReport {
     /// Byte 0: one bit per modifier key, in the order of usages 0xe0 to 0xe7.
-    pub modifiers: u8,
+    modifiers: u8,
     /// Bytes 2..8: usage ids of the keys held, zero for an empty slot.
-    pub keys: [u8; 6],
+    keys: [u8; 6],
 }
 
 impl BootReport {
@@ -83,13 +84,28 @@ impl BootReport {
         }
         let mut keys = [0u8; 6];
         keys.copy_from_slice(&bytes[2..8]);
+        BootReport::new(bytes[0], keys)
+    }
+
+    /// Build a report from its modifier bitmap and its six key slots, as a test of a caller's
+    /// driver feeds [`changes`]. `None` for what [`BootReport::parse`] refuses: a slot holding
+    /// [`ERROR_ROLL_OVER`] or the two other error usages, 2 and 3.
+    pub fn new(modifiers: u8, keys: [u8; 6]) -> Option<BootReport> {
         if keys.iter().any(|&k| (1..=3).contains(&k)) {
             return None;
         }
-        Some(BootReport {
-            modifiers: bytes[0],
-            keys,
-        })
+        Some(BootReport { modifiers, keys })
+    }
+
+    /// Byte 0: one bit per modifier key, in the order of usages 0xe0 to 0xe7.
+    pub fn modifiers(&self) -> u8 {
+        self.modifiers
+    }
+
+    /// Bytes 2 to 7: the usage ids of the keys held, zero for an empty slot, in the order the
+    /// device sent them, which promises nothing.
+    pub fn keys(&self) -> [u8; 6] {
+        self.keys
     }
 
     fn holds(&self, usage: u8) -> bool {
@@ -514,6 +530,21 @@ mod tests {
     fn a_phantom_report_is_refused_rather_than_read_as_a_release() {
         assert_eq!(BootReport::parse(&[0, 0, 1, 1, 1, 1, 1, 1]), None);
         assert_eq!(BootReport::parse(&[0, 0, 0, 0]), None);
+    }
+
+    /// The constructor refuses what the parser refuses, and reads back what it was given.
+    #[test]
+    fn a_built_report_is_one_the_parser_would_accept() {
+        for error in 1..=3 {
+            assert_eq!(BootReport::new(0, [0, 0, error, 0, 0, 0]), None);
+        }
+        let built = BootReport::new(0x22, [0x04, 0, 0, 0, 0, 0x05]).unwrap();
+        assert_eq!(built.modifiers(), 0x22);
+        assert_eq!(built.keys(), [0x04, 0, 0, 0, 0, 0x05]);
+        assert_eq!(
+            Some(built),
+            BootReport::parse(&[0x22, 0xff, 0x04, 0, 0, 0, 0, 0x05])
+        );
     }
 
     /// A device that reports one usage in two slots presses it once.

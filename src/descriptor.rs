@@ -72,8 +72,10 @@ pub enum Refusal {
     },
 }
 
-/// **The device descriptor**, the fields a driver uses from it.
+/// **The device descriptor**, the fields a driver uses from it. Only [`DeviceDescriptor::parse`]
+/// builds one, and a later release may add a field, so a pattern on it ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DeviceDescriptor {
     /// `bcdUSB`: the USB revision the device claims, in binary-coded decimal (0x0200 for 2.0).
     #[doc(alias = "bcdUSB")]
@@ -154,8 +156,10 @@ pub fn control_maximum_packet_bytes(control_packet_size_code: u8, speed: Speed) 
 }
 
 /// **The configuration descriptor's header**: how long the whole configuration is, and the value
-/// `SET_CONFIGURATION` selects it with.
+/// `SET_CONFIGURATION` selects it with. Only [`ConfigurationHeader::parse`] builds one, and a later
+/// release may add a field, so a pattern on it ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ConfigurationHeader {
     /// (`total_length`, `wTotalLength` in USB 2.0 Table 9-10): the bytes of the header plus every
     /// descriptor beneath it.
@@ -186,7 +190,10 @@ impl ConfigurationHeader {
 
 /// **A keyboard that speaks the boot protocol, and where its reports arrive.** Everything the
 /// driver needs to configure the device and the host controller's endpoint, and nothing else.
+/// Only [`find_boot_keyboard`] builds one, so every value describes an endpoint a device sent, and
+/// a later release may add a field, so a pattern on it ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BootKeyboard {
     /// The `bConfigurationValue` to select with `SET_CONFIGURATION`.
     pub configuration: u8,
