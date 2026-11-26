@@ -147,8 +147,6 @@ the assertion that the patch breaks. `git checkout -- src` reverts the patch.
 - No key repeat: a boot keyboard reports state, not events, and typematic repeat is the host's job.
 - No lock state and no light-emitting diodes (LEDs): the crate reports the lock keys as key presses, keeps no Caps
   Lock or Num Lock state and builds no request that sets a keyboard's LEDs.
-- No enum is `#[non_exhaustive]`, so a variant added to `Refusal` or `Speed` after the first
-  release breaks a caller's `match`.
 
 The references are the USB 2.0 and 3.2 specifications for the descriptors and requests, and the HID
 1.11 specification and Usage Tables 1.5 for the report.

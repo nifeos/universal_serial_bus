@@ -36,7 +36,11 @@ pub const PROTOCOL_KEYBOARD: u8 = 1;
 
 /// **Why a descriptor was refused.** Each names the fact a person at the bench needs, because "the
 /// keyboard does not work" is the report this driver would otherwise produce for all of them.
+///
+/// A later release may add a refusal, or a field to one, so a `match` on it ends in a wildcard
+/// arm and a pattern on a variant's fields ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Refusal {
     /// Fewer bytes than the descriptor's fixed header needs.
     Truncated,
@@ -45,6 +49,7 @@ pub enum Refusal {
     NotThatDescriptor,
     /// A descriptor inside a configuration has a length of zero or one, or runs past the end of
     /// what the device sent. `at` is its byte offset, for the bench transcript.
+    #[non_exhaustive]
     Malformed {
         /// Byte offset of the bad descriptor within the configuration.
         at: u16,
@@ -53,12 +58,14 @@ pub enum Refusal {
     /// keyboard, or is one that does not offer the boot protocol.
     NoBootKeyboard,
     /// A boot keyboard interface with no interrupt `IN` endpoint, which no conforming keyboard sends.
+    #[non_exhaustive]
     NoInterruptIn {
         /// The interface that had none.
         interface: u8,
     },
     /// The interrupt endpoint's packets are smaller than one eight-byte boot report, so a report
     /// would arrive in pieces this driver does not reassemble.
+    #[non_exhaustive]
     PacketTooSmall {
         /// What the endpoint descriptor declared.
         maximum_packet_bytes: u16,
@@ -109,8 +116,10 @@ impl DeviceDescriptor {
 }
 
 /// **The speed a device runs at**, in the USB specification's terms. It is USB vocabulary and not
-/// a host controller's numbering: a host controller driver maps its own port speed onto it.
+/// a host controller's numbering: a host controller driver maps its own port speed onto it. A
+/// later release may name another speed, so a `match` on it ends in a wildcard arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Speed {
     /// Low speed, 1.5 Mb/s (USB 2.0).
     Low,
