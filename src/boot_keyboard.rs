@@ -326,51 +326,64 @@ pub struct KeyChange {
     pub action: KeyAction,
 }
 
-/// How many positions a [`Changes`] cursor visits: eight modifier bits, six release slots and six
-/// press slots. Each position yields at most one change, so this bounds the changes too.
+/// How many positions two reports are compared at: eight modifier bits, six release slots and
+/// six press slots. Each position yields at most one change, so this bounds the changes too.
 const CHANGE_POSITIONS: u8 = 20;
 
 /// **The changes between two reports, one at a time**, as [`changes`] returns them. It holds the
-/// two reports and a cursor, so it borrows nothing and allocates nothing.
+/// two reports and one bit for each position that changed, so it borrows nothing, allocates
+/// nothing, and knows its length from the start.
 #[derive(Debug, Clone)]
 pub struct Changes {
     before: BootReport,
     after: BootReport,
-    /// The next position to look at: 0 to 7 are the modifier bits, 8 to 13 the earlier report's
-    /// slots (releases) and 14 to 19 the later report's (presses).
-    position: u8,
+    /// One bit for each position still to yield: bits 0 to 7 are the modifier bits, 8 to 13 the
+    /// earlier report's slots (releases) and 14 to 19 the later report's (presses).
+    pending: u32,
 }
 
 impl Changes {
-    /// The change at `position`, if the key there changed.
-    fn at(&self, position: u8) -> Option<KeyChange> {
-        let (before, after) = (&self.before, &self.after);
+    /// Whether the key at `position` changed.
+    fn changed_at(before: &BootReport, after: &BootReport, position: u8) -> bool {
         if position < 8 {
-            let bit = 1 << position;
-            if (before.modifiers ^ after.modifiers) & bit == 0 {
-                return None;
-            }
-            let action = if after.modifiers & bit != 0 {
-                KeyAction::Press
-            } else {
-                KeyAction::Release
-            };
-            return Some(KeyChange {
-                usage: FIRST_MODIFIER_USAGE + position,
-                action,
-            });
+            return (before.modifiers ^ after.modifiers) & (1 << position) != 0;
         }
         // A key goes up when the earlier report holds it and the later one does not, and down
         // the other way round. Only its first slot counts, so a usage a confused device reports
         // twice changes once.
-        let (from, to, slot, action) = if position < 14 {
-            (before, after, usize::from(position - 8), KeyAction::Release)
+        let (from, to, slot) = if position < 14 {
+            (before, after, usize::from(position - 8))
         } else {
-            (after, before, usize::from(position - 14), KeyAction::Press)
+            (after, before, usize::from(position - 14))
         };
         let usage = from.keys[slot];
-        (usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage))
-            .then_some(KeyChange { usage, action })
+        usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage)
+    }
+
+    /// The change at `position`, which [`Changes::changed_at`] found changed.
+    fn at(&self, position: u8) -> KeyChange {
+        if position < 8 {
+            let action = if self.after.modifiers & (1 << position) != 0 {
+                KeyAction::Press
+            } else {
+                KeyAction::Release
+            };
+            return KeyChange {
+                usage: FIRST_MODIFIER_USAGE + position,
+                action,
+            };
+        }
+        if position < 14 {
+            KeyChange {
+                usage: self.before.keys[usize::from(position - 8)],
+                action: KeyAction::Release,
+            }
+        } else {
+            KeyChange {
+                usage: self.after.keys[usize::from(position - 14)],
+                action: KeyAction::Press,
+            }
+        }
     }
 }
 
@@ -378,20 +391,22 @@ impl Iterator for Changes {
     type Item = KeyChange;
 
     fn next(&mut self) -> Option<KeyChange> {
-        while self.position < CHANGE_POSITIONS {
-            let position = self.position;
-            self.position += 1;
-            if let Some(change) = self.at(position) {
-                return Some(change);
-            }
+        if self.pending == 0 {
+            return None;
         }
-        None
+        // The lowest pending bit is below twenty, so it fits a u8.
+        let position = self.pending.trailing_zeros() as u8;
+        self.pending &= self.pending - 1;
+        Some(self.at(position))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(usize::from(CHANGE_POSITIONS - self.position)))
+        let left = self.pending.count_ones() as usize;
+        (left, Some(left))
     }
 }
+
+impl ExactSizeIterator for Changes {}
 
 impl core::iter::FusedIterator for Changes {}
 
@@ -423,10 +438,16 @@ impl core::iter::FusedIterator for Changes {}
 /// assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
 /// ```
 pub fn changes(before: &BootReport, after: &BootReport) -> Changes {
+    let mut pending = 0;
+    for position in 0..CHANGE_POSITIONS {
+        if Changes::changed_at(before, after, position) {
+            pending |= 1 << position;
+        }
+    }
     Changes {
         before: *before,
         after: *after,
-        position: 0,
+        pending,
     }
 }
 
@@ -608,20 +629,21 @@ mod tests {
         assert_eq!(BootReport::parse(&[0, 0, 0, 0]), None);
     }
 
-    /// The cursor's bound holds as it moves, and an exhausted iterator stays exhausted.
+    /// The iterator knows how many changes are left, and an exhausted one stays exhausted.
     #[test]
-    fn the_changes_iterator_bounds_itself_and_stays_done() {
+    fn the_changes_iterator_knows_its_length_and_stays_done() {
         let mut all = changes(&report(0xff, &[4, 5, 6, 7, 8, 9]), &BootReport::RELEASED);
-        assert_eq!(all.size_hint(), (0, Some(20)));
+        assert_eq!(all.len(), 14);
         assert_eq!(all.by_ref().count(), 14);
-        assert_eq!(all.size_hint(), (0, Some(0)));
+        assert_eq!(all.len(), 0);
         assert_eq!(all.next(), None);
         let mut most = changes(
             &report(0x0f, &[4, 5, 6, 7, 8, 9]),
             &report(0xf0, &[10, 11, 12, 13, 14, 15]),
         );
+        assert_eq!(most.len(), 20);
         assert_eq!(most.next().map(|change| change.usage), Some(0xe0));
-        assert_eq!(most.size_hint(), (0, Some(19)));
+        assert_eq!(most.size_hint(), (19, Some(19)));
         assert_eq!(most.count(), 19);
     }
 
