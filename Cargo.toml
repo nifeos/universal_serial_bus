@@ -6,6 +6,7 @@ rust-version = "1.85"
 description = "The host side of a USB boot keyboard as pure computation: descriptors, setup packets and the boot report, proven total with Kani"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/partsfoundry/universal_serial_bus"
+documentation = "https://docs.rs/universal_serial_bus"
 readme = "README.md"
 include = ["src/**", "README.md", "CHANGELOG.md", "LICENSE-*"]
 keywords = ["usb", "hid", "keyboard", "no-std", "kani"]
