@@ -82,6 +82,11 @@ pub struct DeviceDescriptor {
     pub usb_release_binary_coded_decimal: u16,
     /// `bDeviceClass`. Zero means "each interface says for itself", which is what keyboards send.
     pub class: u8,
+    /// `bDeviceSubClass`, read with [`DeviceDescriptor::class`]: class 0xef with subclass 2 and
+    /// protocol 1 says the configuration groups its interfaces with interface associations.
+    pub subclass: u8,
+    /// `bDeviceProtocol`, read with [`DeviceDescriptor::class`] and [`DeviceDescriptor::subclass`].
+    pub protocol: u8,
     /// (`control_packet_size_code`, `bMaxPacketSize0` in USB 2.0 Table 9-8): the control endpoint's
     /// packet size in bytes below `SuperSpeed`, and the exponent of it at `SuperSpeed` and above, so
     /// a code to interpret and carrying no unit. [`control_maximum_packet_bytes`] interprets it.
@@ -91,6 +96,18 @@ pub struct DeviceDescriptor {
     pub vendor: u16,
     /// `idProduct`.
     pub product: u16,
+    /// `bcdDevice`: the device's own release number, in binary-coded decimal, as the vendor chose it.
+    #[doc(alias = "bcdDevice")]
+    pub device_release_binary_coded_decimal: u16,
+    /// `iManufacturer`: the index of the string descriptor naming the manufacturer, zero for none.
+    #[doc(alias = "iManufacturer")]
+    pub manufacturer_string_index: u8,
+    /// `iProduct`: the index of the string descriptor naming the product, zero for none.
+    #[doc(alias = "iProduct")]
+    pub product_string_index: u8,
+    /// `iSerialNumber`: the index of the string descriptor holding the serial number, zero for none.
+    #[doc(alias = "iSerialNumber")]
+    pub serial_number_string_index: u8,
     /// `bNumConfigurations`.
     pub configurations: u8,
 }
@@ -109,9 +126,15 @@ impl DeviceDescriptor {
         Ok(DeviceDescriptor {
             usb_release_binary_coded_decimal: u16::from_le_bytes([bytes[2], bytes[3]]),
             class: bytes[4],
+            subclass: bytes[5],
+            protocol: bytes[6],
             control_packet_size_code: bytes[7],
             vendor: u16::from_le_bytes([bytes[8], bytes[9]]),
             product: u16::from_le_bytes([bytes[10], bytes[11]]),
+            device_release_binary_coded_decimal: u16::from_le_bytes([bytes[12], bytes[13]]),
+            manufacturer_string_index: bytes[14],
+            product_string_index: bytes[15],
+            serial_number_string_index: bytes[16],
             configurations: bytes[17],
         })
     }
@@ -169,6 +192,15 @@ pub struct ConfigurationHeader {
     pub interfaces: u8,
     /// `bConfigurationValue`, the argument to `SET_CONFIGURATION`.
     pub value: u8,
+    /// `bmAttributes`: bit 6 set for a device that powers itself in this configuration, bit 5 set
+    /// for one that supports remote wakeup, bit 7 set as the specification requires.
+    #[doc(alias = "bmAttributes")]
+    pub attributes: u8,
+    /// (`maximum_power_code`, `bMaxPower` in USB 2.0 Table 9-10): the most current the device draws
+    /// from the bus in this configuration, in units of 2 milliamperes below `SuperSpeed` and of 8
+    /// milliamperes at `SuperSpeed` and above (USB 3.2), so a code carrying no unit.
+    #[doc(alias = "bMaxPower")]
+    pub maximum_power_code: u8,
 }
 
 impl ConfigurationHeader {
@@ -184,6 +216,8 @@ impl ConfigurationHeader {
             total_length: u16::from_le_bytes([bytes[2], bytes[3]]),
             interfaces: bytes[4],
             value: bytes[5],
+            attributes: bytes[7],
+            maximum_power_code: bytes[8],
         })
     }
 }
@@ -489,6 +523,16 @@ mod tests {
         assert_eq!(device.control_packet_size_code, 8);
         assert_eq!((device.vendor, device.product), (0x0627, 0x0001));
         assert_eq!(device.configurations, 1);
+        assert_eq!((device.class, device.subclass, device.protocol), (0, 0, 0));
+        assert_eq!(device.device_release_binary_coded_decimal, 0x0000);
+        assert_eq!(
+            (
+                device.manufacturer_string_index,
+                device.product_string_index,
+                device.serial_number_string_index
+            ),
+            (1, 4, 11)
+        );
         assert_eq!(DeviceDescriptor::parse(&d[..8]), Err(Refusal::Truncated));
         let mut wrong = d;
         wrong[1] = CONFIGURATION;
@@ -517,6 +561,7 @@ mod tests {
     fn a_configuration_header_is_nine_bytes_of_type_two() {
         let header = ConfigurationHeader::parse(&QEMU_USB_KEYBOARD[..9]).unwrap();
         assert_eq!((header.total_length, header.value), (34, 1));
+        assert_eq!((header.attributes, header.maximum_power_code), (0xa0, 50));
         let mut short = QEMU_USB_KEYBOARD;
         short[0] = 8;
         assert_eq!(
