@@ -7,6 +7,7 @@ description = "The host side of a USB boot keyboard as pure computation: descrip
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/partsfoundry/universal_serial_bus"
 readme = "README.md"
+include = ["src/**", "README.md", "CHANGELOG.md", "LICENSE-*"]
 keywords = ["usb", "hid", "keyboard", "no-std", "kani"]
 categories = ["no-std", "embedded", "hardware-support"]
 publish = false     # held until the maintainers decide the first release
