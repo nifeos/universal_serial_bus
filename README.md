@@ -21,13 +21,13 @@ device and drives no controller.
 - `request` builds the four setup packets a host sends to bring a boot keyboard up: `GET_DESCRIPTOR`,
   `SET_CONFIGURATION`, `SET_PROTOCOL` and `SET_IDLE`.
 - `boot_keyboard` parses the eight-byte boot report and computes the difference of two reports as
-  press and release events in Human Interface Device (HID) usages. `evdev_code` maps a usage to a
+  an iterator of press and release events in Human Interface Device (HID) usages. `evdev_code` maps a usage to a
   Linux evdev key code, for a keymap that already reads those.
 
 ## EXAMPLES
 
 ```rust
-use universal_serial_bus::boot_keyboard::{BootReport, changes, evdev_code};
+use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 use universal_serial_bus::descriptor::find_boot_keyboard;
 
 // A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters.
@@ -43,9 +43,10 @@ assert_eq!((keyboard.configuration, keyboard.interface, keyboard.endpoint), (1, 
 // Shift and `h` arrive in one report: `changes` delivers the shift press first.
 let before = BootReport::RELEASED;
 let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]).unwrap();
-let mut seen = Vec::new();
-changes(&before, &after, &mut |usage, pressed| seen.push((usage, pressed)));
-assert_eq!(seen, [(0xe1, true), (0x0b, true)]);
+let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
+    .map(|change| (change.usage, change.action))
+    .collect();
+assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]);
 assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
 ```
 

@@ -24,14 +24,12 @@ fuzz_target!(|data: &[u8]| {
     // Eight modifiers, six releases and six presses at the most, and every event names a usage the
     // keyboard page defines or reports no mapping.
     let mut events = 0usize;
-    changes(&before, &after, &mut |usage, _pressed| {
+    for change in changes(&before, &after) {
         events += 1;
-        let _ = evdev_code(usage);
-    });
+        let _ = evdev_code(change.usage);
+    }
     assert!(events <= 20);
 
     // A report against itself changes nothing.
-    let mut same = 0usize;
-    changes(&after, &after, &mut |_, _| same += 1);
-    assert_eq!(same, 0);
+    assert_eq!(changes(&after, &after).count(), 0);
 });

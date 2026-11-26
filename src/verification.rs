@@ -1,5 +1,5 @@
 use super::Refusal;
-use super::boot_keyboard::{BootReport, changes};
+use super::boot_keyboard::{BootReport, KeyAction, changes};
 use super::descriptor::{
     CLASS_HID, CONFIGURATION, ConfigurationHeader, DeviceDescriptor, ENDPOINT, INTERFACE,
     PROTOCOL_KEYBOARD, SUBCLASS_BOOT, find_boot_keyboard,
@@ -49,13 +49,15 @@ fn the_header_parsers_are_total() {
 /// **Two reports a keystroke apart produce at most twenty events**: eight modifier changes and
 /// six releases and six presses at the very most, so a driver's fixed buffer cannot overflow.
 #[kani::proof]
-#[kani::unwind(10)]
+#[kani::unwind(22)]
 fn two_reports_produce_a_bounded_number_of_events() {
     let a: [u8; 8] = kani::any();
     let b: [u8; 8] = kani::any();
     if let (Some(a), Some(b)) = (BootReport::parse(&a), BootReport::parse(&b)) {
         let mut n = 0usize;
-        changes(&a, &b, &mut |_, _| n += 1);
+        for _ in changes(&a, &b) {
+            n += 1;
+        }
         assert!(n <= 20);
     }
 }
@@ -174,21 +176,22 @@ fn two_interfaces_are_walked_as_two() {
 /// documents. It does not prove the converse, that every usage which changed produces an event:
 /// a usage reported twice in one report produces one event by design, and the unit tests pin it.
 #[kani::proof]
-#[kani::unwind(10)]
+#[kani::unwind(22)]
 fn two_reports_produce_their_events_in_order() {
     let a: [u8; 8] = kani::any();
     let b: [u8; 8] = kani::any();
     let (Some(before), Some(after)) = (BootReport::parse(&a), BootReport::parse(&b)) else {
         return;
     };
-    // Each event is checked as it arrives, so no loop runs over the events afterwards: a loop of
-    // twenty would need an unwind of twenty-one, where every loop here runs at most eight times.
-    let flipped = before.modifiers ^ after.modifiers;
+    // Each event is checked as it arrives, so no loop runs over the events afterwards.
+    let flipped = before.modifiers() ^ after.modifiers();
     let modifier_events = flipped.count_ones() as usize;
     let mut n = 0usize;
     let mut next_bit = 0usize;
     let mut pressing = false;
-    changes(&before, &after, &mut |usage, pressed| {
+    for change in changes(&before, &after) {
+        let usage = change.usage;
+        let pressed = change.action == KeyAction::Press;
         if n < modifier_events {
             while next_bit < 8 && flipped & (1 << next_bit) == 0 {
                 next_bit += 1;
@@ -198,7 +201,7 @@ fn two_reports_produce_their_events_in_order() {
                 (usage, pressed)
                     == (
                         0xe0 + next_bit as u8,
-                        after.modifiers & (1 << next_bit) != 0
+                        after.modifiers() & (1 << next_bit) != 0
                     ),
                 "modifiers first"
             );
@@ -212,14 +215,14 @@ fn two_reports_produce_their_events_in_order() {
                 (&before, &after)
             };
             assert!(
-                from.keys
+                from.keys()
                     .iter()
-                    .any(|&u| u != 0 && !other.keys.contains(&u) && u == usage),
+                    .any(|&u| u != 0 && !other.keys().contains(&u) && u == usage),
                 "a usage held in exactly one report"
             );
         }
         n += 1;
-    });
+    }
     assert!(n >= modifier_events, "every flipped modifier has its event");
     assert!(n <= 20);
 }

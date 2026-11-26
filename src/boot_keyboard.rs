@@ -303,52 +303,130 @@ const CODE_BY_USAGE: [Option<u16>; 0x88] = [
     Some(94),  // 0x8b International5: KEY_MUHENKAN
 ];
 
-/// **What changed from `before` to `after`**, as `(usage, pressed)` calls to `event`, in the
-/// order that types correctly: every modifier change first, then the keys released, then the keys
-/// pressed. A modifier is its usage, 0xe0 for left control through 0xe7 for right GUI, so every
-/// event names a usage of the Keyboard/Keypad page, and [`evdev_code`] maps it to an evdev code.
-/// Shift and a letter arriving in one report must reach the keymap shift first, which is why
+/// **Whether a key went down or came up.** A later release may name another action, so a `match`
+/// on it ends in a wildcard arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyAction {
+    /// The key is held in the later report and was not in the earlier one.
+    Press,
+    /// The key was held in the earlier report and is not in the later one.
+    Release,
+}
+
+/// **One key that changed between two reports**: its usage on the Keyboard/Keypad page, and
+/// whether it went down or came up. Only [`changes`] builds one, and a later release may add a
+/// field, so a pattern on it ends in `..`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct KeyChange {
+    /// The key's usage id; a modifier is 0xe0 for left control through 0xe7 for right GUI.
+    pub usage: u8,
+    /// Whether it went down or came up.
+    pub action: KeyAction,
+}
+
+/// How many positions a [`Changes`] cursor visits: eight modifier bits, six release slots and six
+/// press slots. Each position yields at most one change, so this bounds the changes too.
+const CHANGE_POSITIONS: u8 = 20;
+
+/// **The changes between two reports, one at a time**, as [`changes`] returns them. It holds the
+/// two reports and a cursor, so it borrows nothing and allocates nothing.
+#[derive(Debug, Clone)]
+pub struct Changes {
+    before: BootReport,
+    after: BootReport,
+    /// The next position to look at: 0 to 7 are the modifier bits, 8 to 13 the earlier report's
+    /// slots (releases) and 14 to 19 the later report's (presses).
+    position: u8,
+}
+
+impl Changes {
+    /// The change at `position`, if the key there changed.
+    fn at(&self, position: u8) -> Option<KeyChange> {
+        let (before, after) = (&self.before, &self.after);
+        if position < 8 {
+            let bit = 1 << position;
+            if (before.modifiers ^ after.modifiers) & bit == 0 {
+                return None;
+            }
+            let action = if after.modifiers & bit != 0 {
+                KeyAction::Press
+            } else {
+                KeyAction::Release
+            };
+            return Some(KeyChange {
+                usage: FIRST_MODIFIER_USAGE + position,
+                action,
+            });
+        }
+        // A key goes up when the earlier report holds it and the later one does not, and down
+        // the other way round. Only its first slot counts, so a usage a confused device reports
+        // twice changes once.
+        let (from, to, slot, action) = if position < 14 {
+            (before, after, usize::from(position - 8), KeyAction::Release)
+        } else {
+            (after, before, usize::from(position - 14), KeyAction::Press)
+        };
+        let usage = from.keys[slot];
+        (usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage))
+            .then_some(KeyChange { usage, action })
+    }
+}
+
+impl Iterator for Changes {
+    type Item = KeyChange;
+
+    fn next(&mut self) -> Option<KeyChange> {
+        while self.position < CHANGE_POSITIONS {
+            let position = self.position;
+            self.position += 1;
+            if let Some(change) = self.at(position) {
+                return Some(change);
+            }
+        }
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(usize::from(CHANGE_POSITIONS - self.position)))
+    }
+}
+
+impl core::iter::FusedIterator for Changes {}
+
+/// **What changed from `before` to `after`**, as an iterator of [`KeyChange`]s in the order that
+/// types correctly: every modifier change first, in bit order, then the keys released, then the
+/// keys pressed. A modifier is its usage, 0xe0 for left control through 0xe7 for right GUI, so
+/// every change names a usage of the Keyboard/Keypad page, and [`evdev_code`] maps it to an evdev
+/// code. Shift and a letter arriving in one report must reach the keymap shift first, which is why
 /// modifiers lead; a key released and another pressed in one report is a roll, and the release
 /// first is what a person did. Every usage the device reports is delivered, whether or not
 /// [`evdev_code`] knows it; the caller skips what it cannot map.
 ///
-/// At most twenty calls: eight modifiers, six releases, six presses.
+/// At most twenty changes: eight modifiers, six releases, six presses. A caller that wants a
+/// callback writes `changes(&before, &after).for_each(...)`.
 ///
 /// # Examples
 ///
-/// Shift and `h` arrive together in one report, so the shift press is delivered first:
+/// Shift and `h` arrive together in one report, so the shift press comes first:
 ///
 /// ```
-/// use universal_serial_bus::boot_keyboard::{BootReport, changes, evdev_code};
+/// use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 ///
-/// let before = BootReport::parse(&[0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+/// let before = BootReport::RELEASED;
 /// let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]).unwrap(); // left shift, usage 0x0b (h)
-/// let mut seen = Vec::new();
-/// changes(&before, &after, &mut |usage, pressed| seen.push((usage, pressed)));
-/// assert_eq!(seen, [(0xe1, true), (0x0b, true)]); // LeftShift, then h
+/// let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
+///     .map(|change| (change.usage, change.action))
+///     .collect();
+/// assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]); // LeftShift, then h
 /// assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
 /// ```
-pub fn changes(before: &BootReport, after: &BootReport, event: &mut dyn FnMut(u8, bool)) {
-    let flipped = before.modifiers ^ after.modifiers;
-    for bit in 0..8u8 {
-        if flipped & (1 << bit) != 0 {
-            event(
-                FIRST_MODIFIER_USAGE + bit,
-                after.modifiers & (1 << bit) != 0,
-            );
-        }
-    }
-    for (i, &usage) in before.keys.iter().enumerate() {
-        // `before.keys[..i]` so a usage a confused device reports twice is released once.
-        if usage != 0 && !after.holds(usage) && !before.keys[..i].contains(&usage) {
-            event(usage, false);
-        }
-    }
-    for (i, &usage) in after.keys.iter().enumerate() {
-        // `after.keys[..i]` so a usage a confused device reports twice is pressed once.
-        if usage != 0 && !before.holds(usage) && !after.keys[..i].contains(&usage) {
-            event(usage, true);
-        }
+pub fn changes(before: &BootReport, after: &BootReport) -> Changes {
+    Changes {
+        before: *before,
+        after: *after,
+        position: 0,
     }
 }
 
@@ -366,22 +444,20 @@ mod tests {
         BootReport::parse(&b).unwrap()
     }
 
-    /// The events as evdev codes, the way a caller with an evdev keymap reads them.
+    /// The changes as evdev codes, pressed or not, the way a caller with an evdev keymap reads them.
     fn difference(a: &BootReport, b: &BootReport) -> Vec<(u16, bool)> {
-        let mut v = Vec::new();
-        changes(a, b, &mut |usage, p| {
-            if let Some(code) = evdev_code(usage) {
-                v.push((code, p));
-            }
-        });
-        v
+        changes(a, b)
+            .filter_map(|change| {
+                evdev_code(change.usage).map(|code| (code, change.action == KeyAction::Press))
+            })
+            .collect()
     }
 
-    /// The events as the usages the device sent.
+    /// The changes as the usages the device sent, pressed or not.
     fn usages(a: &BootReport, b: &BootReport) -> Vec<(u8, bool)> {
-        let mut v = Vec::new();
-        changes(a, b, &mut |usage, p| v.push((usage, p)));
-        v
+        changes(a, b)
+            .map(|change| (change.usage, change.action == KeyAction::Press))
+            .collect()
     }
 
     /// **`changes` speaks usages**: a modifier is 0xe0 to 0xe7 in bit order, and a usage with no
@@ -483,11 +559,11 @@ mod tests {
             0x08u8, 0x06, 0x0b, 0x12, 0x2c, 0x0b, 0x08, 0x0f, 0x0f, 0x12, 0x28,
         ] {
             for next in [report(0, &[usage]), BootReport::RELEASED] {
-                changes(&state, &next, &mut |usage, pressed| {
-                    if let (true, Some(code)) = (pressed, evdev_code(usage)) {
-                        presses.push(code);
-                    }
-                });
+                presses.extend(
+                    changes(&state, &next)
+                        .filter(|change| change.action == KeyAction::Press)
+                        .filter_map(|change| evdev_code(change.usage)),
+                );
                 state = next;
             }
         }
@@ -530,6 +606,23 @@ mod tests {
     fn a_phantom_report_is_refused_rather_than_read_as_a_release() {
         assert_eq!(BootReport::parse(&[0, 0, 1, 1, 1, 1, 1, 1]), None);
         assert_eq!(BootReport::parse(&[0, 0, 0, 0]), None);
+    }
+
+    /// The cursor's bound holds as it moves, and an exhausted iterator stays exhausted.
+    #[test]
+    fn the_changes_iterator_bounds_itself_and_stays_done() {
+        let mut all = changes(&report(0xff, &[4, 5, 6, 7, 8, 9]), &BootReport::RELEASED);
+        assert_eq!(all.size_hint(), (0, Some(20)));
+        assert_eq!(all.by_ref().count(), 14);
+        assert_eq!(all.size_hint(), (0, Some(0)));
+        assert_eq!(all.next(), None);
+        let mut most = changes(
+            &report(0x0f, &[4, 5, 6, 7, 8, 9]),
+            &report(0xf0, &[10, 11, 12, 13, 14, 15]),
+        );
+        assert_eq!(most.next().map(|change| change.usage), Some(0xe0));
+        assert_eq!(most.size_hint(), (0, Some(19)));
+        assert_eq!(most.count(), 19);
     }
 
     /// The constructor refuses what the parser refuses, and reads back what it was given.
