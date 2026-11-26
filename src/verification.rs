@@ -1,8 +1,8 @@
 use super::Refusal;
 use super::boot_keyboard::{BootReport, KeyAction, changes};
 use super::descriptor::{
-    CLASS_HID, CONFIGURATION, ConfigurationHeader, DeviceDescriptor, ENDPOINT, INTERFACE,
-    PROTOCOL_KEYBOARD, SUBCLASS_BOOT, find_boot_keyboard,
+    CLASS_HID, CONFIGURATION, ConfigurationHeader, Descriptors, DeviceDescriptor, ENDPOINT,
+    INTERFACE, PROTOCOL_KEYBOARD, SUBCLASS_BOOT, find_boot_keyboard,
 };
 
 /// Falsification: replayable `falsifications/verification.the_configuration_walk_is_total_and_accepts_only_an_interrupt_in.patch`
@@ -32,6 +32,45 @@ fn the_configuration_walk_is_total_and_accepts_only_an_interrupt_in() {
     // Not vacuous: some 25-byte configuration is accepted, so the assertions above are
     // evaluated on a real keyboard and not only on the refusals.
     kani::cover!(find_boot_keyboard(&bytes[..len]).is_ok());
+}
+
+/// Falsification: replayable `falsifications/verification.the_descriptor_walk_is_total_and_yields_whole_descriptors.patch`
+/// **The descriptor walk never panics, and every descriptor it yields is whole**: it lies inside
+/// the configuration and inside `wTotalLength`, its first byte is its own length, and an
+/// interface or endpoint descriptor holds its fixed layout, so a caller may index it by that
+/// layout. This is the guarantee every walk built on [`Descriptors`] reads by, including
+/// [`find_boot_keyboard`]. The bound of 25 bytes is the first harness's, for the same reason.
+#[kani::proof]
+#[kani::unwind(27)]
+fn the_descriptor_walk_is_total_and_yields_whole_descriptors() {
+    let bytes: [u8; 25] = kani::any();
+    let len: usize = kani::any();
+    kani::assume(len <= bytes.len());
+    let configuration = &bytes[..len];
+    if let Ok(walk) = Descriptors::new(configuration) {
+        let total = usize::from(walk.header().total_length);
+        let mut end = usize::from(configuration[0]);
+        for descriptor in walk.flatten() {
+            let at = descriptor.as_ptr() as usize - configuration.as_ptr() as usize;
+            assert!(at == end, "each descriptor starts where the last one ended");
+            end = at + descriptor.len();
+            assert!(
+                end <= len && end <= total,
+                "inside the buffer and the total"
+            );
+            assert!(descriptor.len() >= 2, "it holds its length and type");
+            assert!(
+                usize::from(descriptor[0]) == descriptor.len(),
+                "its first byte is its length"
+            );
+            let layout = match descriptor[1] {
+                INTERFACE => 9,
+                ENDPOINT => 7,
+                _ => 2,
+            };
+            assert!(descriptor.len() >= layout, "it holds its fixed layout");
+        }
+    }
 }
 
 /// Falsification: replayable `falsifications/verification.the_header_parsers_are_total.patch`

@@ -8,9 +8,9 @@ Expected to fail: the bounds check on `bytes[0]` in `DeviceDescriptor::parse`.
 diff --git a/src/descriptor.rs b/src/descriptor.rs
 --- a/src/descriptor.rs
 +++ b/src/descriptor.rs
-@@ -91,9 +91,6 @@
-     /// bytes, and [`Refusal::NotThatDescriptor`] for the wrong type or a `bLength` shorter than
-     /// the layout.
+@@ -141,9 +141,6 @@
+     /// }
+     /// ```
      pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
 -        if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
 -            return Err(Refusal::Truncated);

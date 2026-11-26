@@ -5,7 +5,8 @@
 //! descriptor beneath it, concatenated, so reading one is a walk over a linked structure whose
 //! links are lengths **the device chose**. That is the whole hazard: a zero length loops forever,
 //! a length past the end reads past the end, and a walk that trusts either is a driver a cheap
-//! keyboard can crash. [`find_boot_keyboard`] checks both before every step.
+//! keyboard can crash. [`Descriptors`] checks both before every step, and [`find_boot_keyboard`]
+//! walks with it.
 
 /// `bDescriptorType` of a device descriptor.
 pub const DEVICE: u8 = 1;
@@ -47,8 +48,9 @@ pub enum Refusal {
     /// The bytes are not the descriptor they were asked for: the wrong type, or a length field
     /// shorter than that type's fixed layout.
     NotThatDescriptor,
-    /// A descriptor inside a configuration has a length of zero or one, or runs past the end of
-    /// what the device sent. `at` is its byte offset, for the bench transcript.
+    /// A descriptor inside a configuration has a length of zero or one, runs past the end of
+    /// what the device sent, or is an interface or endpoint descriptor too short for its layout.
+    /// `at` is its byte offset, for the bench transcript.
     #[non_exhaustive]
     Malformed {
         /// Byte offset of the bad descriptor within the configuration.
@@ -116,6 +118,28 @@ impl DeviceDescriptor {
     /// Parse a device descriptor. [`Refusal::Truncated`] for fewer than [`DEVICE_DESCRIPTOR_BYTES`]
     /// bytes, and [`Refusal::NotThatDescriptor`] for the wrong type or a `bLength` shorter than
     /// the layout.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`DEVICE_DESCRIPTOR_BYTES`] bytes, and
+    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`DEVICE`] or `bLength` is shorter
+    /// than the layout.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::descriptor::DeviceDescriptor;
+    ///
+    /// fn main() -> Result<(), Refusal> {
+    ///     // A USB 2.0 device, vendor 0x0627, product 0x0001, a 64-byte control endpoint.
+    ///     let bytes = [18, 1, 0, 2, 0, 0, 0, 64, 0x27, 0x06, 1, 0, 0, 0, 1, 2, 3, 1];
+    ///     let device = DeviceDescriptor::parse(&bytes)?;
+    ///     assert_eq!((device.vendor, device.product), (0x0627, 0x0001));
+    ///     assert_eq!(DeviceDescriptor::parse(&bytes[..8]), Err(Refusal::Truncated));
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
         if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
             return Err(Refusal::Truncated);
@@ -168,6 +192,21 @@ pub enum Speed {
 /// 8, and accepts 8 to 64 at high speed with a warning (`drivers/usb/core/hub.c` at
 /// `torvalds/linux@23c62304dde29abe92013d85910d03a77dada35d`); this function refuses that, as the
 /// specification does.
+///
+/// # Errors
+///
+/// `None` when `control_packet_size_code` is not a size (or, at `SuperSpeed`, an exponent) the
+/// specification allows at `speed`.
+///
+/// # Examples
+///
+/// ```
+/// use universal_serial_bus::descriptor::{Speed, control_maximum_packet_bytes};
+///
+/// assert_eq!(control_maximum_packet_bytes(64, Speed::Full), Some(64));
+/// assert_eq!(control_maximum_packet_bytes(9, Speed::Super), Some(512));
+/// assert_eq!(control_maximum_packet_bytes(16, Speed::Low), None); // low speed allows only 8
+/// ```
 pub fn control_maximum_packet_bytes(control_packet_size_code: u8, speed: Speed) -> Option<u16> {
     match (speed, control_packet_size_code) {
         (Speed::Low, 8) | (Speed::Full, 8 | 16 | 32 | 64) | (Speed::High, 64) => {
@@ -205,6 +244,25 @@ pub struct ConfigurationHeader {
 
 impl ConfigurationHeader {
     /// Parse the first [`CONFIGURATION_HEADER_BYTES`] bytes of a configuration descriptor.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`CONFIGURATION_HEADER_BYTES`] bytes, and
+    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`CONFIGURATION`] or `bLength` is
+    /// shorter than the header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::descriptor::ConfigurationHeader;
+    ///
+    /// fn main() -> Result<(), Refusal> {
+    ///     let header = ConfigurationHeader::parse(&[9, 2, 34, 0, 1, 1, 0, 0xa0, 50])?;
+    ///     assert_eq!((header.total_length, header.interfaces, header.value), (34, 1, 1));
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn parse(bytes: &[u8]) -> Result<ConfigurationHeader, Refusal> {
         if bytes.len() < CONFIGURATION_HEADER_BYTES {
             return Err(Refusal::Truncated);
@@ -244,43 +302,184 @@ pub struct BootKeyboard {
     pub interval: u8,
 }
 
+/// **The descriptors beneath a configuration header, one at a time**: each interface, endpoint,
+/// class and vendor descriptor's bytes, length and type included, in the order the device sent
+/// them. A caller looking for a mouse, a hub or a second interface walks with it, and
+/// [`find_boot_keyboard`] is one such walk.
+///
+/// The walk begins after the configuration header's own `bLength`, so a header longer than nine
+/// bytes skips what the device says it carries. It stops at the lesser of `wTotalLength` and the
+/// buffer's length, so a read cut short is a shorter walk rather than an overrun. Every descriptor
+/// it yields holds at least its own two bytes of length and type, and an interface or endpoint
+/// descriptor holds at least its fixed layout. A descriptor that breaks that (a length of 0 or 1,
+/// one that runs past `wTotalLength`, or an interface or endpoint too short for its layout) is
+/// yielded as [`Refusal::Malformed`] with its offset, and the walk ends there.
+#[derive(Debug, Clone)]
+pub struct Descriptors<'a> {
+    configuration: &'a [u8],
+    header: ConfigurationHeader,
+    /// The offset of the next descriptor.
+    at: usize,
+    /// Set once the walk has ended, after a refusal or at the end of the bytes.
+    done: bool,
+}
+
+impl<'a> Descriptors<'a> {
+    /// Begin a walk over `configuration`, the configuration descriptor as the device sent it,
+    /// possibly cut short by the buffer it was read into.
+    ///
+    /// # Errors
+    ///
+    /// What [`ConfigurationHeader::parse`] refuses: [`Refusal::Truncated`] for fewer than
+    /// [`CONFIGURATION_HEADER_BYTES`] bytes, and [`Refusal::NotThatDescriptor`] for bytes that are not
+    /// a configuration header. A descriptor beneath the header that is malformed is not refused here;
+    /// the walk yields [`Refusal::Malformed`] when it reaches it.
+    ///
+    /// # Examples
+    ///
+    /// A caller looking for something other than a keyboard, here every endpoint address:
+    ///
+    /// ```
+    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::descriptor::{Descriptors, ENDPOINT};
+    ///
+    /// fn main() -> Result<(), Refusal> {
+    ///     let configuration = [
+    ///         9, 2, 25, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 25 bytes
+    ///         9, 4, 0, 0, 1, 3, 1, 2, 0, // interface 0: HID, boot, mouse
+    ///         7, 5, 0x81, 3, 4, 0, 10, // endpoint 1 `IN`, interrupt, 4 bytes
+    ///     ];
+    ///     let mut endpoints = Vec::new();
+    ///     for descriptor in Descriptors::new(&configuration)? {
+    ///         let descriptor = descriptor?;
+    ///         if descriptor[1] == ENDPOINT {
+    ///             endpoints.push(descriptor[2]);
+    ///         }
+    ///     }
+    ///     assert_eq!(endpoints, [0x81]);
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn new(configuration: &'a [u8]) -> Result<Descriptors<'a>, Refusal> {
+        let header = ConfigurationHeader::parse(configuration)?;
+        Ok(Descriptors {
+            configuration,
+            header,
+            at: usize::from(configuration[0]),
+            done: false,
+        })
+    }
+
+    /// The configuration's header, which the walk read first.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::descriptor::Descriptors;
+    ///
+    /// fn main() -> Result<(), Refusal> {
+    ///     let walk = Descriptors::new(&[9, 2, 9, 0, 0, 1, 0, 0x80, 50])?;
+    ///     assert_eq!(walk.header().value, 1);
+    ///     assert_eq!(walk.count(), 0); // a header with nothing beneath it
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn header(&self) -> ConfigurationHeader {
+        self.header
+    }
+
+    /// End the walk with a refusal naming the descriptor at `at`.
+    fn malformed(&mut self, at: usize) -> Option<Result<&'a [u8], Refusal>> {
+        self.done = true;
+        Some(Err(Refusal::Malformed {
+            at: u16::try_from(at).unwrap_or(u16::MAX),
+        }))
+    }
+}
+
+impl<'a> Iterator for Descriptors<'a> {
+    type Item = Result<&'a [u8], Refusal>;
+
+    fn next(&mut self) -> Option<Result<&'a [u8], Refusal>> {
+        let configuration = self.configuration;
+        let total = usize::from(self.header.total_length);
+        let end = configuration.len().min(total);
+        let at = self.at;
+        if self.done || at + 2 > end {
+            self.done = true;
+            return None;
+        }
+        let len = usize::from(configuration[at]);
+        if len < 2 || at + len > total {
+            return self.malformed(at);
+        }
+        if at + len > configuration.len() {
+            // Well formed by the device's own total, and cut off by the buffer it was read into.
+            self.done = true;
+            return None;
+        }
+        // A descriptor of a type a walk reads by its layout, too short for that layout, is
+        // refused: skipping it would leave the previous interface open, and the endpoint that
+        // follows would be read as that interface's.
+        let layout = match configuration[at + 1] {
+            INTERFACE => INTERFACE_DESCRIPTOR_BYTES,
+            ENDPOINT => ENDPOINT_DESCRIPTOR_BYTES,
+            _ => 2,
+        };
+        if len < layout {
+            return self.malformed(at);
+        }
+        self.at = at + len;
+        Some(Ok(&configuration[at..at + len]))
+    }
+}
+
+impl core::iter::FusedIterator for Descriptors<'_> {}
+
 /// **Find the boot keyboard in a configuration**: the first interface (alternate setting 0) of
 /// class 3, subclass 1, protocol 1, and the first interrupt `IN` endpoint beneath it.
 ///
-/// The walk begins after the configuration header's own `bLength`, so a header longer than nine
-/// bytes skips what the device says it carries.
+/// `configuration` is as the device sent it, possibly cut short by the buffer it was read into, and
+/// the walk is [`Descriptors`]', with its bounds and refusals. It answers at the first keyboard
+/// endpoint, so a later defect, common in cheap devices, is never read.
 ///
-/// `configuration` is the configuration as the device sent it, possibly cut short by the buffer it was
-/// read into: the walk stops at the lesser of `wTotalLength` and `configuration.len()`, so a truncated
-/// read is a shorter walk rather than an overrun. A malformed descriptor (a length of 0 or 1, or
-/// one that runs past `wTotalLength`) is refused with its offset. The walk answers at the first
-/// keyboard endpoint it finds, so a defect after that is never read: the bytes the keyboard was
-/// found in were well formed, and a trailing defect is common in cheap devices.
+/// # Errors
+///
+/// What [`Descriptors`] refuses: [`Refusal::Truncated`] or [`Refusal::NotThatDescriptor`] for the
+/// header, and [`Refusal::Malformed`] for a descriptor the walk reaches before a keyboard endpoint.
+/// Then, when the walk ends with no keyboard endpoint: [`Refusal::PacketTooSmall`] when a boot
+/// keyboard's interrupt `IN` endpoint was refused for its packet size, [`Refusal::NoInterruptIn`]
+/// when a boot keyboard interface had no interrupt `IN` endpoint, and [`Refusal::NoBootKeyboard`]
+/// when no interface was a boot keyboard.
 ///
 /// # Examples
 ///
 /// A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters:
 ///
 /// ```
+/// use universal_serial_bus::Refusal;
 /// use universal_serial_bus::descriptor::find_boot_keyboard;
 ///
+/// # fn main() -> Result<(), Refusal> {
 /// let configuration = [
 ///     9, 2, 34, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 34 bytes, one interface
 ///     9, 4, 0, 0, 1, 3, 1, 1, 0, // interface 0: HID, boot, keyboard, one endpoint
 ///     9, 0x21, 0x11, 1, 0, 1, 0x22, 63, 0, // the HID descriptor, which the walk skips
 ///     7, 5, 0x81, 3, 8, 0, 10, // endpoint 1 `IN`, interrupt, 8 bytes, every 10 frames
 /// ];
-/// let keyboard = find_boot_keyboard(&configuration).unwrap();
+/// let keyboard = find_boot_keyboard(&configuration)?;
 /// assert_eq!(keyboard.configuration, 1);
 /// assert_eq!(keyboard.interface, 0);
 /// assert_eq!(keyboard.endpoint, 0x81);
 /// assert_eq!(keyboard.maximum_packet_bytes, 8);
 /// assert_eq!(keyboard.interval, 10);
+/// # Ok(())
+/// # }
 /// ```
 pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal> {
-    let header = ConfigurationHeader::parse(configuration)?;
-    let total = usize::from(header.total_length);
-    let end = configuration.len().min(total);
+    let descriptors = Descriptors::new(configuration)?;
+    let header = descriptors.header();
 
     // The interface currently being read, when it is a boot keyboard: its number. `None` while
     // the walk is inside some other interface.
@@ -290,33 +489,9 @@ pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal>
     // An endpoint refused for its packet size, for the refusal, if nothing better turns up.
     let mut too_small: Option<u16> = None;
 
-    let mut at = configuration[0] as usize;
-    while at + 2 <= end {
-        let len = configuration[at] as usize;
-        if len < 2 || at + len > total {
-            return Err(Refusal::Malformed {
-                at: u16::try_from(at).unwrap_or(u16::MAX),
-            });
-        }
-        if at + len > configuration.len() {
-            // Well formed by the device's own total, and cut off by the buffer it was read into.
-            break;
-        }
-        let d = &configuration[at..at + len];
+    for d in descriptors {
+        let d = d?;
         match d[1] {
-            // A descriptor of a type this walk reads, too short for that type's layout, is
-            // refused: skipping it would leave the previous interface open, and the endpoint
-            // that follows would be read as that interface's.
-            INTERFACE if len < INTERFACE_DESCRIPTOR_BYTES => {
-                return Err(Refusal::Malformed {
-                    at: u16::try_from(at).unwrap_or(u16::MAX),
-                });
-            }
-            ENDPOINT if len < ENDPOINT_DESCRIPTOR_BYTES => {
-                return Err(Refusal::Malformed {
-                    at: u16::try_from(at).unwrap_or(u16::MAX),
-                });
-            }
             INTERFACE => {
                 if let Some(interface) = candidate {
                     without_endpoint = Some(interface);
@@ -353,7 +528,6 @@ pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal>
             // `SuperSpeed` companions: none of them changes which endpoint the reports arrive on.
             _ => {}
         }
-        at += len;
     }
     if let Some(maximum_packet_bytes) = too_small {
         return Err(Refusal::PacketTooSmall {
@@ -643,6 +817,36 @@ mod tests {
             find_boot_keyboard(&configuration),
             Err(Refusal::NoInterruptIn { interface: 0 })
         );
+    }
+
+    /// The walk yields each descriptor whole, in order, then ends; a caller can look for any
+    /// interface with it.
+    #[test]
+    fn the_descriptors_are_walked_whole_and_in_order() {
+        let mut walk = Descriptors::new(&QEMU_USB_KEYBOARD).unwrap();
+        assert_eq!(walk.header().value, 1);
+        assert_eq!(walk.next(), Some(Ok(&QEMU_USB_KEYBOARD[9..18])));
+        assert_eq!(walk.next(), Some(Ok(&QEMU_USB_KEYBOARD[18..27])));
+        assert_eq!(walk.next(), Some(Ok(&QEMU_USB_KEYBOARD[27..34])));
+        assert_eq!(walk.next(), None);
+        assert_eq!(walk.next(), None);
+        assert_eq!(
+            Descriptors::new(&QEMU_USB_KEYBOARD[..4]).err(),
+            Some(Refusal::Truncated)
+        );
+    }
+
+    /// A refusal names the offset and ends the walk, and a read cut short ends it quietly.
+    #[test]
+    fn a_malformed_descriptor_ends_the_walk_with_its_offset() {
+        let mut configuration = QEMU_USB_KEYBOARD;
+        configuration[18] = 1;
+        let mut walk = Descriptors::new(&configuration).unwrap();
+        assert!(matches!(walk.next(), Some(Ok(_))));
+        assert_eq!(walk.next(), Some(Err(Refusal::Malformed { at: 18 })));
+        assert_eq!(walk.next(), None);
+        let cut = Descriptors::new(&QEMU_USB_KEYBOARD[..30]).unwrap();
+        assert_eq!(cut.count(), 2);
     }
 
     /// The reserved bits of `bEndpointAddress` do not reach the caller.

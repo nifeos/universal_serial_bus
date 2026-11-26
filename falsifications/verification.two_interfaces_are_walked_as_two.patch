@@ -10,7 +10,7 @@ Expected to fail: the harness's "an endpoint of the boot interface it names" ass
 diff --git a/src/descriptor.rs b/src/descriptor.rs
 --- a/src/descriptor.rs
 +++ b/src/descriptor.rs
-@@ -275,7 +275,9 @@
+@@ -500,7 +500,9 @@
                      && d[5] == CLASS_HID
                      && d[6] == SUBCLASS_BOOT
                      && d[7] == PROTOCOL_KEYBOARD;
