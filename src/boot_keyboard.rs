@@ -78,6 +78,26 @@ impl BootReport {
     /// (any slot holding [`ERROR_ROLL_OVER`] or the two other error usages, 2 and 3), which a
     /// driver must ignore rather than read as every key released. A buffer longer than eight bytes
     /// is accepted and its tail ignored.
+    ///
+    /// # Errors
+    ///
+    /// `None` when `bytes` holds fewer than [`REPORT_BYTES`] bytes, and for a phantom report.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::{BootReport, ERROR_ROLL_OVER};
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let report = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0])?; // left shift, usage 0x0b (h)
+    /// assert_eq!((report.modifiers(), report.keys()), (0x02, [0x0b, 0, 0, 0, 0, 0]));
+    /// assert_eq!(BootReport::parse(&[0, 0, ERROR_ROLL_OVER, 0, 0, 0, 0, 0]), None);
+    /// # Some(())
+    /// # }
+    /// ```
     pub fn parse(bytes: &[u8]) -> Option<BootReport> {
         if bytes.len() < REPORT_BYTES {
             return None;
@@ -90,6 +110,25 @@ impl BootReport {
     /// Build a report from its modifier bitmap and its six key slots, as a test of a caller's
     /// driver feeds [`changes`]. `None` for what [`BootReport::parse`] refuses: a slot holding
     /// [`ERROR_ROLL_OVER`] or the two other error usages, 2 and 3.
+    ///
+    /// # Errors
+    ///
+    /// `None` when a slot of `keys` holds 1, 2 or 3, the error usages.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let report = BootReport::new(0, [0x04, 0, 0, 0, 0, 0])?; // usage 0x04 (a)
+    /// assert_eq!(BootReport::parse(&[0, 0, 0x04, 0, 0, 0, 0, 0]), Some(report));
+    /// # Some(())
+    /// # }
+    /// ```
     pub fn new(modifiers: u8, keys: [u8; 6]) -> Option<BootReport> {
         if keys.iter().any(|&k| (1..=3).contains(&k)) {
             return None;
@@ -98,12 +137,28 @@ impl BootReport {
     }
 
     /// Byte 0: one bit per modifier key, in the order of usages 0xe0 to 0xe7.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// assert_eq!(BootReport::new(0x22, [0; 6]).map(|r| r.modifiers()), Some(0x22)); // both shifts
+    /// ```
     pub fn modifiers(&self) -> u8 {
         self.modifiers
     }
 
     /// Bytes 2 to 7: the usage ids of the keys held, zero for an empty slot, in the order the
     /// device sent them, which promises nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// assert_eq!(BootReport::RELEASED.keys(), [0; 6]);
+    /// ```
     pub fn keys(&self) -> [u8; 6] {
         self.keys
     }
@@ -116,43 +171,19 @@ impl BootReport {
 /// **Usage id to evdev code**, for the keyboard page's usages 0x04 through 0x8b: the main block,
 /// the function keys to F24, the navigation cluster, the keypad, the European and Japanese keys,
 /// and the editing and volume keys; and for the eight modifiers, 0xe0 to 0xe7. `None` for anything
-/// else, including 0 (no key), and for the four usages in the first range with no key (below). The module documentation names the sources.
+/// else, including 0 (no key), and for the four usages in the first range with no key (below).
+/// The module documentation names the sources.
 ///
-/// Most names match on their face (`F1` is `KEY_F1`); where they do not, the Usage Tables decide:
+#[doc = include_str!("evdev_code.md")]
 ///
-/// - 0x2a `DELETE (Backspace)` is `KEY_BACKSPACE` and 0x4c `Delete Forward` is `KEY_DELETE`, by
-///   footnotes 4 and 8: the first backs up the cursor, the second deletes in place.
-/// - 0xe3 and 0xe7, `Left GUI` and `Right GUI`, are `KEY_LEFTMETA` and `KEY_RIGHTMETA`, because
-///   footnotes 33 and 34 list the Sun Meta key among the GUI keys.
-/// - 0x64 `Non-US \ and |` is `KEY_102ND`, the 102nd key beside the left Shift by footnote 10, and
-///   0x65 `Application` is `KEY_COMPOSE`, named the Windows key and Compose by footnote 11.
-/// - 0x87 to 0x8b, `International1` to `International5`, are `KEY_RO`, `KEY_KATAKANAHIRAGANA`,
-///   `KEY_YEN`, `KEY_HENKAN` and `KEY_MUHENKAN`, the legends the Usage Tables' Japanese table
-///   gives them (ろ, ひらがな and カタカナ, ¥, 変換, 無変換).
+/// # Examples
 ///
-/// # This crate's choices
+/// ```
+/// use universal_serial_bus::boot_keyboard::evdev_code;
 ///
-/// The sources leave six things open, and this crate chose them:
-///
-/// - **Usage 0x32 (`Non-US # and ~`) is `KEY_BACKSLASH`.** The header has no key for it. The
-///   usage sits at Advanced Technology (AT) 101-key position 42, beside Return, and footnote 5 gives `\` and `|` as its
-///   United States (US) legends, so a US layout reads it as the backslash key.
-/// - **Usage 0x46 (`PrintScreen`) is `KEY_SYSRQ`.** The header's `KEY_PRINT` carries the comment
-///   `AC Print`, the Consumer page's print command, not a keyboard key. System Request is the
-///   function a personal computer (PC) keyboard puts on the Print Screen keycap.
-/// - **A usage named for two legends takes the first.** `Keypad Num Lock and Clear` (0x53) is
-///   `KEY_NUMLOCK`, and `Keypad 1 and End` (0x59) through `Keypad . and Delete` (0x63) are the
-///   keypad keys `KEY_KP1` through `KEY_KPDOT`. The second legend is what the key does in another
-///   mode, which the keymap decides, and the Usage Tables give Clear its own usages (0x9c, 0xd8).
-/// - **A usage whose only match is another page's key takes it.** `Power`, `Help`, `Stop`, `Undo`,
-///   `Cut`, `Copy`, `Paste` and `Find` (0x66, 0x75, 0x78, 0x7a to 0x7e) match only header names
-///   whose comments give a System Control, Application Launch or Consumer usage, and no keyboard
-///   key competes for them. `Keypad Equal Sign` (0x86, footnote 14) is `KEY_KPEQUAL`, as is
-///   `Keypad =` (0x67).
-/// - **0x74 `Execute` has no code.** No header name matches it.
-/// - **0x82 to 0x84, the locking Caps, Num and Scroll Lock, have no code.** Footnote 12 says each
-///   is held in the report while the lock is on, so a press and a release would toggle a keymap
-///   twice for one change. Keyboards are expected to send the non-locking keys (0x39, 0x53, 0x47).
+/// assert_eq!(evdev_code(0x04), Some(30)); // a is KEY_A
+/// assert_eq!(evdev_code(0x74), None); // Execute
+/// ```
 pub fn evdev_code(usage: u8) -> Option<u16> {
     if let Some(bit) = usage.checked_sub(FIRST_MODIFIER_USAGE) {
         return MODIFIER_CODES.get(usize::from(bit)).copied();
@@ -344,7 +375,7 @@ pub struct Changes {
 
 impl Changes {
     /// Whether the key at `position` changed.
-    fn changed_at(before: &BootReport, after: &BootReport, position: u8) -> bool {
+    fn has_changed_at(before: &BootReport, after: &BootReport, position: u8) -> bool {
         if position < 8 {
             return (before.modifiers ^ after.modifiers) & (1 << position) != 0;
         }
@@ -360,7 +391,7 @@ impl Changes {
         usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage)
     }
 
-    /// The change at `position`, which [`Changes::changed_at`] found changed.
+    /// The change at `position`, which [`Changes::has_changed_at`] found changed.
     fn at(&self, position: u8) -> KeyChange {
         if position < 8 {
             let action = if self.after.modifiers & (1 << position) != 0 {
@@ -429,18 +460,24 @@ impl core::iter::FusedIterator for Changes {}
 /// ```
 /// use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 ///
+/// # fn main() {
+/// #     assert!(example().is_some());
+/// # }
+/// # fn example() -> Option<()> {
 /// let before = BootReport::RELEASED;
-/// let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]).unwrap(); // left shift, usage 0x0b (h)
+/// let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0])?; // left shift, usage 0x0b (h)
 /// let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
 ///     .map(|change| (change.usage, change.action))
 ///     .collect();
 /// assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]); // LeftShift, then h
 /// assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
+/// # Some(())
+/// # }
 /// ```
 pub fn changes(before: &BootReport, after: &BootReport) -> Changes {
     let mut pending = 0;
     for position in 0..CHANGE_POSITIONS {
-        if Changes::changed_at(before, after, position) {
+        if Changes::has_changed_at(before, after, position) {
             pending |= 1 << position;
         }
     }

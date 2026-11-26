@@ -15,48 +15,63 @@ device and drives no controller.
 
 ## What it does
 
-- `descriptor` parses the device descriptor and the configuration header, and walks a configuration
-  to the boot keyboard's interrupt endpoint, the direction `IN`, device to host (`find_boot_keyboard`). It also turns the device's
+- `descriptor` parses the device descriptor and the configuration header, and walks a
+  configuration one descriptor at a time (`Descriptors`). On that walk it finds the boot keyboard's
+  interrupt endpoint, the direction `IN`, device to host (`find_boot_keyboard`). It also turns the device's
   `bMaxPacketSize0` into bytes for a given speed.
 - `request` builds the four setup packets a host sends to bring a boot keyboard up: `GET_DESCRIPTOR`,
-  `SET_CONFIGURATION`, `SET_PROTOCOL` and `SET_IDLE`.
+  `SET_CONFIGURATION`, `SET_PROTOCOL` and `SET_IDLE`, with a typed `bmRequestType`, and turns a
+  setup packet into its eight wire bytes and back.
 - `boot_keyboard` parses the eight-byte boot report and computes the difference of two reports as
   an iterator of press and release events in Human Interface Device (HID) usages. `evdev_code` maps a usage to a
   Linux evdev key code, for a keymap that already reads those.
 
 ## EXAMPLES
 
+Find a boot keyboard's endpoint in its configuration, then turn two of its reports into key
+changes:
+
 ```rust
+use universal_serial_bus::Refusal;
 use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 use universal_serial_bus::descriptor::find_boot_keyboard;
 
-// A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters.
-let configuration = [
-    9, 2, 34, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 34 bytes, one interface
-    9, 4, 0, 0, 1, 3, 1, 1, 0, // interface 0: HID, boot, keyboard, one endpoint
-    9, 0x21, 0x11, 1, 0, 1, 0x22, 63, 0, // the HID descriptor, which the walk skips
-    7, 5, 0x81, 3, 8, 0, 10, // endpoint 1 `IN`, interrupt, 8 bytes, every 10 frames
-];
-let keyboard = find_boot_keyboard(&configuration).unwrap();
-assert_eq!((keyboard.configuration, keyboard.interface, keyboard.endpoint), (1, 0, 0x81));
+fn main() -> Result<(), Refusal> {
+    // A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters.
+    let configuration = [
+        9, 2, 34, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 34 bytes, one interface
+        9, 4, 0, 0, 1, 3, 1, 1, 0, // interface 0: HID, boot, keyboard, one endpoint
+        9, 0x21, 0x11, 1, 0, 1, 0x22, 63, 0, // the HID descriptor, which the walk skips
+        7, 5, 0x81, 3, 8, 0, 10, // endpoint 1 `IN`, interrupt, 8 bytes, every 10 frames
+    ];
+    let keyboard = find_boot_keyboard(&configuration)?;
+    assert_eq!((keyboard.configuration, keyboard.interface, keyboard.endpoint), (1, 0, 0x81));
 
-// Shift and `h` arrive in one report: `changes` delivers the shift press first.
-let before = BootReport::RELEASED;
-let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]).unwrap();
-let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
-    .map(|change| (change.usage, change.action))
-    .collect();
-assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]);
-assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
+    // Shift and `h` arrive in one report: `changes` delivers the shift press first. A phantom
+    // report parses to `None`, and a driver skips it.
+    let before = BootReport::RELEASED;
+    if let Some(after) = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]) {
+        let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
+            .map(|change| (change.usage, change.action))
+            .collect();
+        assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]);
+        assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
+    }
+    Ok(())
+}
 ```
 
 ## What is proven
 
-Five [Kani](https://github.com/model-checking/kani) harnesses, in `src/verification.rs`. Each proof
+Six [Kani](https://github.com/model-checking/kani) harnesses, in `src/verification.rs`. Each proof
 holds for every input up to the bound it names.
 
 - `the_header_parsers_are_total`: for every byte string of up to 20 bytes, the device descriptor
   and configuration header parsers never panic.
+- `the_descriptor_walk_is_total_and_yields_whole_descriptors`: for every configuration of up to 25
+  bytes, `Descriptors` never panics. Every descriptor it yields lies inside the buffer and
+  `wTotalLength`, starts where the last one ended and carries its own length, and an interface or
+  endpoint descriptor holds its fixed layout.
 - `the_configuration_walk_is_total_and_accepts_only_an_interrupt_in`: for every configuration of
   up to 25 bytes, the walk never panics, and what it accepts is an interrupt `IN` endpoint numbered
   above zero.
@@ -64,7 +79,7 @@ holds for every input up to the bound it names.
   length, the walk answers only a boot keyboard's endpoint, and a refusal names a boot interface
   the buffer holds.
 - `two_reports_produce_a_bounded_number_of_events`: for every pair of eight-byte reports,
-  `changes` delivers at most twenty events.
+  `changes` yields at most twenty changes.
 - `two_reports_produce_their_events_in_order`: for every pair of reports, modifiers come first in
   bit order, then releases, then presses, and each event names a usage held in exactly one of the
   two reports.
@@ -164,5 +179,5 @@ cargo +1.85 build --lib --target x86_64-unknown-none
 
 ## License
 
-Licensed under either of the MIT license ([LICENSE-MIT](LICENSE-MIT)) or the Apache License,
-Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), at your option.
+Licensed under either of the MIT license ([LICENSE-MIT](https://github.com/partsfoundry/universal_serial_bus/blob/main/LICENSE-MIT)) or the Apache License,
+Version 2.0 ([LICENSE-APACHE](https://github.com/partsfoundry/universal_serial_bus/blob/main/LICENSE-APACHE)), at your option.

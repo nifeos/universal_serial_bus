@@ -69,6 +69,15 @@ pub struct RequestType(u8);
 
 impl RequestType {
     /// The byte that packs `direction`, `kind` and `recipient`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::{Direction, Recipient, RequestKind, RequestType};
+    ///
+    /// let to_interface = RequestType::new(Direction::HostToDevice, RequestKind::Class, Recipient::Interface);
+    /// assert_eq!(to_interface.get(), 0x21);
+    /// ```
     pub const fn new(direction: Direction, kind: RequestKind, recipient: Recipient) -> RequestType {
         let direction = match direction {
             Direction::HostToDevice => 0,
@@ -90,6 +99,27 @@ impl RequestType {
 
     /// Read `bmRequestType` from the byte a setup packet carries. `None` for a reserved kind (3)
     /// or a reserved recipient (4 to 31).
+    ///
+    /// # Errors
+    ///
+    /// `None` when the kind bits hold the reserved value 3 or the recipient bits a reserved value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::{Direction, Recipient, RequestType};
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let request_type = RequestType::parse(0x81)?;
+    /// assert_eq!(request_type.direction(), Direction::DeviceToHost);
+    /// assert_eq!(request_type.recipient(), Recipient::Interface);
+    /// assert_eq!(RequestType::parse(0x60), None); // kind 3 is reserved
+    /// # Some(())
+    /// # }
+    /// ```
     pub const fn parse(byte: u8) -> Option<RequestType> {
         if (byte >> 5) & 0x3 == 3 || byte & 0x1f > 3 {
             return None;
@@ -98,11 +128,27 @@ impl RequestType {
     }
 
     /// The byte itself, as the first byte of the packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert_eq!(SetupPacket::set_boot_protocol(0).request_type.get(), 0x21);
+    /// ```
     pub const fn get(self) -> u8 {
         self.0
     }
 
     /// Which way the data stage flows.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::{Direction, SetupPacket};
+    ///
+    /// assert_eq!(SetupPacket::get_descriptor(1, 0, 18).request_type.direction(), Direction::DeviceToHost);
+    /// ```
     pub const fn direction(self) -> Direction {
         if self.0 & DEVICE_TO_HOST != 0 {
             Direction::DeviceToHost
@@ -112,6 +158,14 @@ impl RequestType {
     }
 
     /// Who defines the request.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::{RequestKind, SetupPacket};
+    ///
+    /// assert_eq!(SetupPacket::set_idle_forever(0).request_type.kind(), RequestKind::Class);
+    /// ```
     pub const fn kind(self) -> RequestKind {
         match (self.0 >> 5) & 0x3 {
             0 => RequestKind::Standard,
@@ -121,6 +175,14 @@ impl RequestType {
     }
 
     /// What the request is addressed to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::{Recipient, SetupPacket};
+    ///
+    /// assert_eq!(SetupPacket::set_configuration(1).request_type.recipient(), Recipient::Device);
+    /// ```
     pub const fn recipient(self) -> Recipient {
         match self.0 & 0x1f {
             0 => Recipient::Device,
@@ -156,6 +218,18 @@ impl SetupPacket {
     /// bytes. A device may answer fewer, and the host must accept a short answer. The parameter
     /// `index` is the descriptor index, which goes in the low byte of `wValue`; the packet's own
     /// [`SetupPacket::index`] field is `wIndex`, which this request leaves zero.
+    ///
+    /// # Examples
+    ///
+    /// The first request a host sends, for the first eight bytes of the device descriptor:
+    ///
+    /// ```
+    /// use universal_serial_bus::descriptor::DEVICE;
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// let packet = SetupPacket::get_descriptor(DEVICE, 0, 8);
+    /// assert_eq!(packet.to_le_bytes(), [0x80, 6, 0, 1, 0, 0, 8, 0]);
+    /// ```
     pub const fn get_descriptor(kind: u8, index: u8, length: u16) -> SetupPacket {
         SetupPacket {
             request_type: RequestType::new(
@@ -171,6 +245,14 @@ impl SetupPacket {
     }
 
     /// `SET_CONFIGURATION` to the configuration whose `bConfigurationValue` is `value`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert_eq!(SetupPacket::set_configuration(1).to_le_bytes(), [0, 9, 1, 0, 0, 0, 0, 0]);
+    /// ```
     pub const fn set_configuration(value: u8) -> SetupPacket {
         SetupPacket {
             request_type: RequestType::new(
@@ -188,6 +270,14 @@ impl SetupPacket {
     /// HID `SET_PROTOCOL` to the boot protocol, on `interface`. HID 1.11 section 7.2.6 says a host should
     /// send it rather than assume the protocol, because every device starts in report protocol; some
     /// keyboards stall it and report boot anyway, which is why the driver tolerates a stall here.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert_eq!(SetupPacket::set_boot_protocol(0).to_le_bytes(), [0x21, 0x0b, 0, 0, 0, 0, 0, 0]);
+    /// ```
     pub const fn set_boot_protocol(interface: u8) -> SetupPacket {
         SetupPacket {
             request_type: RequestType::new(
@@ -205,6 +295,14 @@ impl SetupPacket {
     /// HID `SET_IDLE` with a duration of zero on `interface`: report only when something changes.
     /// What a boot keyboard defaults to in practice, asked for because a device that repeated
     /// its last report would look like a key held down to nothing at all.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert_eq!(SetupPacket::set_idle_forever(1).to_le_bytes(), [0x21, 0x0a, 0, 0, 1, 0, 0, 0]);
+    /// ```
     pub const fn set_idle_forever(interface: u8) -> SetupPacket {
         SetupPacket {
             request_type: RequestType::new(
@@ -220,19 +318,46 @@ impl SetupPacket {
     }
 
     /// Whether a data stage, if there is one, flows device to host.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert!(SetupPacket::get_descriptor(2, 0, 9).is_device_to_host());
+    /// assert!(!SetupPacket::set_configuration(1).is_device_to_host());
+    /// ```
     pub const fn is_device_to_host(&self) -> bool {
         matches!(self.request_type.direction(), Direction::DeviceToHost)
     }
 
     /// **The eight bytes as one little-endian quadword**, the order they go on the wire and the
     /// layout an xHCI setup-stage TRB carries as immediate data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// assert_eq!(SetupPacket::set_configuration(1).to_u64(), 0x0000_0000_0001_0900);
+    /// ```
     pub const fn to_u64(&self) -> u64 {
         u64::from_le_bytes(self.to_le_bytes())
     }
 
     /// **The eight bytes in the order they go on the wire**, each multi-byte field little-endian,
-    /// as a host controller that takes the setup stage as bytes (a DWC2 or EHCI driver's buffer)
-    /// writes them.
+    /// as a host controller that takes the setup stage as bytes writes them (the buffer of a
+    /// driver for a controller without the setup-stage block of the Extensible Host Controller
+    /// Interface).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// let bytes = SetupPacket::get_descriptor(2, 0, 34).to_le_bytes();
+    /// assert_eq!(bytes, [0x80, 6, 0, 2, 0, 0, 34, 0]);
+    /// ```
     pub const fn to_le_bytes(&self) -> [u8; SETUP_PACKET_BYTES] {
         let value = self.value.to_le_bytes();
         let index = self.index.to_le_bytes();
@@ -252,6 +377,27 @@ impl SetupPacket {
     /// **Read a setup packet from the bytes on the wire**, as a test or a device-side reader does.
     /// `None` for fewer than [`SETUP_PACKET_BYTES`] bytes, and for a `bmRequestType` that holds a
     /// reserved value ([`RequestType::parse`]). A longer buffer is accepted and its tail ignored.
+    ///
+    /// # Errors
+    ///
+    /// `None` when `bytes` holds fewer than [`SETUP_PACKET_BYTES`] bytes, and when `bmRequestType`
+    /// holds a reserved value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::request::SetupPacket;
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let packet = SetupPacket::parse(&[0x21, 0x0b, 0, 0, 1, 0, 0, 0])?;
+    /// assert_eq!(packet, SetupPacket::set_boot_protocol(1));
+    /// assert_eq!(SetupPacket::parse(&[0x21, 0x0b]), None);
+    /// # Some(())
+    /// # }
+    /// ```
     pub const fn parse(bytes: &[u8]) -> Option<SetupPacket> {
         if bytes.len() < SETUP_PACKET_BYTES {
             return None;
@@ -313,10 +459,30 @@ mod tests {
     #[test]
     fn a_request_type_packs_its_three_parts() {
         let all = [
-            (Direction::DeviceToHost, RequestKind::Vendor, Recipient::Other, 0xc3),
-            (Direction::HostToDevice, RequestKind::Class, Recipient::Endpoint, 0x22),
-            (Direction::HostToDevice, RequestKind::Standard, Recipient::Device, 0x00),
-            (Direction::DeviceToHost, RequestKind::Class, Recipient::Interface, 0xa1),
+            (
+                Direction::DeviceToHost,
+                RequestKind::Vendor,
+                Recipient::Other,
+                0xc3,
+            ),
+            (
+                Direction::HostToDevice,
+                RequestKind::Class,
+                Recipient::Endpoint,
+                0x22,
+            ),
+            (
+                Direction::HostToDevice,
+                RequestKind::Standard,
+                Recipient::Device,
+                0x00,
+            ),
+            (
+                Direction::DeviceToHost,
+                RequestKind::Class,
+                Recipient::Interface,
+                0xa1,
+            ),
         ];
         for (direction, kind, recipient, byte) in all {
             let request_type = RequestType::new(direction, kind, recipient);
@@ -356,7 +522,10 @@ mod tests {
             ..SetupPacket::set_idle_forever(0)
         };
         assert_eq!(interface.to_le_bytes()[2..6], [0x04, 0x03, 0x02, 0x01]);
-        assert_eq!(SetupPacket::parse(&interface.to_le_bytes()), Some(interface));
+        assert_eq!(
+            SetupPacket::parse(&interface.to_le_bytes()),
+            Some(interface)
+        );
         assert_eq!(SetupPacket::parse(&bytes[..7]), None);
         let mut reserved = bytes;
         reserved[0] = 0x60;
