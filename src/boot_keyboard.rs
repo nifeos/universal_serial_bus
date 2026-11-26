@@ -502,7 +502,7 @@ mod tests {
         BootReport::parse(&b).unwrap()
     }
 
-    /// The changes as evdev codes, pressed or not, the way a caller with an evdev keymap reads them.
+    /// The changes as evdev codes, pressed or not, as a caller with an evdev keymap reads them.
     fn difference(a: &BootReport, b: &BootReport) -> Vec<(u16, bool)> {
         changes(a, b)
             .filter_map(|change| {

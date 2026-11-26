@@ -15,16 +15,16 @@ device and drives no controller.
 
 ## What it does
 
-- `descriptor` parses the device descriptor and the configuration header, and walks a
-  configuration one descriptor at a time (`Descriptors`). On that walk it finds the boot keyboard's
-  interrupt endpoint, the direction `IN`, device to host (`find_boot_keyboard`). It also turns the device's
+- `descriptor` parses the device descriptor and the configuration header, and walks a configuration
+  one descriptor at a time (`Descriptors`). On that walk it finds the boot keyboard's interrupt
+  endpoint, the direction `IN`, device to host (`find_boot_keyboard`). It also turns the device's
   `bMaxPacketSize0` into bytes for a given speed.
 - `request` builds the four setup packets a host sends to bring a boot keyboard up: `GET_DESCRIPTOR`,
   `SET_CONFIGURATION`, `SET_PROTOCOL` and `SET_IDLE`, with a typed `bmRequestType`, and turns a
   setup packet into its eight wire bytes and back.
-- `boot_keyboard` parses the eight-byte boot report and computes the difference of two reports as
-  an iterator of press and release events in Human Interface Device (HID) usages. `evdev_code` maps a usage to a
-  Linux evdev key code, for a keymap that already reads those.
+- `boot_keyboard` parses the eight-byte boot report and computes the difference of two reports as an
+  iterator of press and release events in Human Interface Device (HID) usages. `evdev_code` maps a
+  usage to a Linux evdev key code, for a keymap that already reads those.
 
 ## EXAMPLES
 
@@ -161,8 +161,8 @@ the assertion that the patch breaks. `git checkout -- src` reverts the patch.
   `Refusal::NoBootKeyboard`.
 - The first boot keyboard interface wins; the crate looks for no second keyboard.
 - No key repeat: a boot keyboard reports state, not events, and typematic repeat is the host's job.
-- No lock state and no light-emitting diodes (LEDs): the crate reports the lock keys as key presses, keeps no Caps
-  Lock or Num Lock state and builds no request that sets a keyboard's LEDs.
+- No lock state and no light-emitting diodes (LEDs): the crate reports the lock keys as key presses,
+  keeps no Caps Lock or Num Lock state and builds no request that sets a keyboard's LEDs.
 
 The references are the USB 2.0 and 3.2 specifications for the descriptors and requests, and the HID
 1.11 specification and Usage Tables 1.5 for the report.

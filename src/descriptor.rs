@@ -98,7 +98,7 @@ pub struct DeviceDescriptor {
     pub vendor: u16,
     /// `idProduct`.
     pub product: u16,
-    /// `bcdDevice`: the device's own release number, in binary-coded decimal, as the vendor chose it.
+    /// `bcdDevice`: the device's release number, in binary-coded decimal, as the vendor chose it.
     #[doc(alias = "bcdDevice")]
     pub device_release_binary_coded_decimal: u16,
     /// `iManufacturer`: the index of the string descriptor naming the manufacturer, zero for none.
@@ -107,7 +107,7 @@ pub struct DeviceDescriptor {
     /// `iProduct`: the index of the string descriptor naming the product, zero for none.
     #[doc(alias = "iProduct")]
     pub product_string_index: u8,
-    /// `iSerialNumber`: the index of the string descriptor holding the serial number, zero for none.
+    /// `iSerialNumber`: the index of the string descriptor with the serial number, zero for none.
     #[doc(alias = "iSerialNumber")]
     pub serial_number_string_index: u8,
     /// `bNumConfigurations`.
@@ -122,8 +122,8 @@ impl DeviceDescriptor {
     /// # Errors
     ///
     /// [`Refusal::Truncated`] when `bytes` holds fewer than [`DEVICE_DESCRIPTOR_BYTES`] bytes, and
-    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`DEVICE`] or `bLength` is shorter
-    /// than the layout.
+    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`DEVICE`] or `bLength` is
+    /// shorter than the layout.
     ///
     /// # Examples
     ///
@@ -247,9 +247,9 @@ impl ConfigurationHeader {
     ///
     /// # Errors
     ///
-    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`CONFIGURATION_HEADER_BYTES`] bytes, and
-    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`CONFIGURATION`] or `bLength` is
-    /// shorter than the header.
+    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`CONFIGURATION_HEADER_BYTES`] bytes,
+    /// and [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`CONFIGURATION`] or
+    /// `bLength` is shorter than the header.
     ///
     /// # Examples
     ///
@@ -331,9 +331,9 @@ impl<'a> Descriptors<'a> {
     /// # Errors
     ///
     /// What [`ConfigurationHeader::parse`] refuses: [`Refusal::Truncated`] for fewer than
-    /// [`CONFIGURATION_HEADER_BYTES`] bytes, and [`Refusal::NotThatDescriptor`] for bytes that are not
-    /// a configuration header. A descriptor beneath the header that is malformed is not refused here;
-    /// the walk yields [`Refusal::Malformed`] when it reaches it.
+    /// [`CONFIGURATION_HEADER_BYTES`] bytes, and [`Refusal::NotThatDescriptor`] for bytes that are
+    /// not a configuration header. A descriptor beneath the header that is malformed is not refused
+    /// here; the walk yields [`Refusal::Malformed`] when it reaches it.
     ///
     /// # Examples
     ///

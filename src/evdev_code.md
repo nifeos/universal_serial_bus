@@ -14,9 +14,9 @@ Most names match on their face (`F1` is `KEY_F1`); where they do not, the Usage 
 
 The sources leave six things open, and this crate chose them:
 
-- **Usage 0x32 (`Non-US # and ~`) is `KEY_BACKSLASH`.** The header has no key for it. The
-  usage sits at Advanced Technology (AT) 101-key position 42, beside Return, and footnote 5 gives `\` and `|` as its
-  United States (US) legends, so a US layout reads it as the backslash key.
+- **Usage 0x32 (`Non-US # and ~`) is `KEY_BACKSLASH`.** The header has no key for it. The usage sits
+  at Advanced Technology (AT) 101-key position 42, beside Return, and footnote 5 gives `\` and `|`
+  as its United States (US) legends, so a US layout reads it as the backslash key.
 - **Usage 0x46 (`PrintScreen`) is `KEY_SYSRQ`.** The header's `KEY_PRINT` carries the comment
   `AC Print`, the Consumer page's print command, not a keyboard key. System Request is the
   function a personal computer (PC) keyboard puts on the Print Screen keycap.
