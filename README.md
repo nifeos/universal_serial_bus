@@ -120,9 +120,9 @@ cargo kani setup
 
 CI uses version 0.68.0, and another version may verify differently.
 
-Then `cargo kani`, from the crate's directory, runs all five harnesses. On a desktop that takes about 7 minutes and peaks near
-2.2 gigabytes of memory. To run one harness, give its full path and
-`--exact`:
+Then `cargo kani`, from the crate's directory, runs all six harnesses. On a Linux `x86_64` host that
+takes about 6.5 minutes and peaks near 2.2 gigabytes of memory. To run one harness, give its full
+path and `--exact`:
 
 ```sh
 cargo kani --harness verification::the_header_parsers_are_total --exact
@@ -140,7 +140,7 @@ A passing run prints several lines that look alarming. Expect all of them:
 - Source paths under `/home/runner/.rustup`, a directory that does not exist on your machine. They
   come from the toolchain Kani ships.
 
-Trust the last line of the run: `Complete - 5 successfully verified harnesses, 0 failures, 5 total.`
+Trust the last line of the run: `Complete - 6 successfully verified harnesses, 0 failures, 6 total.`
 
 ### Running one falsification patch
 
