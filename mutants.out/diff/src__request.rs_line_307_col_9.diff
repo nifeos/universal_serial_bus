@@ -1,0 +1,31 @@
+--- src/request.rs
++++ replace SetupPacket::set_idle_forever -> SetupPacket with Default::default()
+@@ -299,27 +299,17 @@
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::SetupPacket;
+     ///
+     /// assert_eq!(SetupPacket::set_idle_forever(1).to_le_bytes(), [0x21, 0x0a, 0, 0, 1, 0, 0, 0]);
+     /// ```
+     pub const fn set_idle_forever(interface: u8) -> SetupPacket {
+-        SetupPacket {
+-            request_type: RequestType::new(
+-                Direction::HostToDevice,
+-                RequestKind::Class,
+-                Recipient::Interface,
+-            ),
+-            request: SET_IDLE,
+-            value: 0,
+-            index: interface as u16,
+-            length: 0,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Whether a data stage, if there is one, flows device to host.
+     ///
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::SetupPacket;

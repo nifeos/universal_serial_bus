@@ -1,0 +1,21 @@
+--- src/request.rs
++++ replace <impl From<SetupPacket> for [u8; SETUP_PACKET_BYTES]>::from -> [u8; SETUP_PACKET_BYTES] with [0; SETUP_PACKET_BYTES]
+@@ -413,17 +413,17 @@
+             length: u16::from_le_bytes([bytes[6], bytes[7]]),
+         })
+     }
+ }
+ 
+ impl From<SetupPacket> for [u8; SETUP_PACKET_BYTES] {
+     /// The packet's bytes on the wire, as [`SetupPacket::to_le_bytes`] gives them.
+     fn from(packet: SetupPacket) -> [u8; SETUP_PACKET_BYTES] {
+-        packet.to_le_bytes()
++        [0; SETUP_PACKET_BYTES] /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+     /// The device descriptor's first eight bytes, the first request any host sends: `80 06 00 01

@@ -1,0 +1,21 @@
+--- src/descriptor.rs
++++ replace > with < in <impl Iterator for Descriptors<'a>>::next
+@@ -406,17 +406,17 @@
+         let total = usize::from(self.header.total_length);
+         let end = configuration.len().min(total);
+         let at = self.at;
+         if self.done || at + 2 > end {
+             self.done = true;
+             return None;
+         }
+         let len = usize::from(configuration[at]);
+-        if len < 2 || at + len > total {
++        if len < 2 || at + len < /* ~ changed by cargo-mutants ~ */ total {
+             return self.malformed(at);
+         }
+         if at + len > configuration.len() {
+             // Well formed by the device's own total, and cut off by the buffer it was read into.
+             self.done = true;
+             return None;
+         }
+         // A descriptor of a type a walk reads by its layout, too short for that layout, is

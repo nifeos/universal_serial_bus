@@ -1,0 +1,197 @@
+
+*** src/descriptor.rs:417:15: replace + with * in <impl Iterator for Descriptors<'a>>::next
+
+*** mutation diff:
+--- src/descriptor.rs
++++ replace + with * in <impl Iterator for Descriptors<'a>>::next
+@@ -409,17 +409,17 @@
+         if self.done || at + 2 > end {
+             self.done = true;
+             return None;
+         }
+         let len = usize::from(configuration[at]);
+         if len < 2 || at + len > total {
+             return self.malformed(at);
+         }
+-        if at + len > configuration.len() {
++        if at * /* ~ changed by cargo-mutants ~ */ len > configuration.len() {
+             // Well formed by the device's own total, and cut off by the buffer it was read into.
+             self.done = true;
+             return None;
+         }
+         // A descriptor of a type a walk reads by its layout, too short for that layout, is
+         // refused: skipping it would leave the previous interface open, and the endpoint that
+         // follows would be read as that interface's.
+         let layout = match configuration[at + 1] {
+
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=universal_serial_bus@0.1.0
+       Dirty universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp): the file `src/descriptor.rs` has changed (1795828492.841486161s, 676005132ns after last build at 1795828492.165481029s)
+   Compiling universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies`
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.67s
+  Executable `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+*** result: Success
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=universal_serial_bus@0.1.0
+       Fresh universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+running 38 tests
+test boot_keyboard::tests::a_built_report_is_one_the_parser_would_accept ... ok
+test boot_keyboard::tests::a_duplicated_usage_presses_once ... ok
+test boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release ... ok
+test boot_keyboard::tests::a_phantom_report_is_refused_rather_than_read_as_a_release ... ok
+test boot_keyboard::tests::a_duplicated_usage_releases_once ... ok
+test boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages ... ok
+test boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once ... ok
+test boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first ... ok
+test boot_keyboard::tests::echo_hello_decodes_key_by_key ... ok
+test boot_keyboard::tests::the_table_matches_its_linux_cross_check ... ok
+test boot_keyboard::tests::the_changes_iterator_knows_its_length_and_stays_done ... ok
+test boot_keyboard::tests::the_code_lookup_answers_for_the_eight_modifiers_by_their_usage ... ok
+test boot_keyboard::tests::the_usage_table_matches_the_keycaps ... ok
+test descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number ... FAILED
+test descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over ... FAILED
+test descriptor::tests::a_composite_keyboard_answers_its_boot_interface ... FAILED
+test descriptor::tests::a_configuration_header_is_nine_bytes_of_type_two ... ok
+test descriptor::tests::a_device_descriptor_parses_and_a_short_one_does_not ... ok
+test descriptor::tests::a_device_descriptor_reads_its_own_length ... ok
+test descriptor::tests::a_keyboard_behind_another_interface_is_found ... FAILED
+test descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset ... FAILED
+test descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough ... FAILED
+test descriptor::tests::a_storage_device_is_refused_as_not_a_keyboard ... ok
+test descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated ... FAILED
+test descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun ... FAILED
+test descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint ... FAILED
+test descriptor::tests::an_endpoint_smaller_than_a_report_is_refused ... FAILED
+test descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops ... FAILED
+test descriptor::tests::only_an_interrupt_in_endpoint_counts ... FAILED
+test descriptor::tests::qemus_keyboard_is_found ... FAILED
+test descriptor::tests::the_control_packet_size_is_checked_against_the_speed ... ok
+test descriptor::tests::the_descriptors_are_walked_whole_and_in_order ... FAILED
+test descriptor::tests::the_endpoint_carries_only_its_number_and_direction ... FAILED
+test request::tests::a_packet_reads_back_from_its_bytes ... ok
+test request::tests::a_request_type_packs_its_three_parts ... ok
+test request::tests::a_reserved_request_type_is_refused ... ok
+test request::tests::the_class_requests_are_sent_to_the_interface ... ok
+test request::tests::get_descriptor_is_the_bytes_the_wire_carries ... ok
+
+failures:
+
+---- descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number stdout ----
+
+thread 'descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number' (393490) panicked at src/descriptor.rs:816:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Err(NoInterruptIn { interface: 0 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over stdout ----
+
+thread 'descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over' (393491) panicked at src/descriptor.rs:767:52:
+called `Result::unwrap()` on an `Err` value: NoBootKeyboard
+
+---- descriptor::tests::a_composite_keyboard_answers_its_boot_interface stdout ----
+
+thread 'descriptor::tests::a_composite_keyboard_answers_its_boot_interface' (393492) panicked at src/descriptor.rs:584:52:
+called `Result::unwrap()` on an `Err` value: NoBootKeyboard
+
+---- descriptor::tests::a_keyboard_behind_another_interface_is_found stdout ----
+
+thread 'descriptor::tests::a_keyboard_behind_another_interface_is_found' (393496) panicked at src/descriptor.rs:598:52:
+called `Result::unwrap()` on an `Err` value: NoBootKeyboard
+
+---- descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset stdout ----
+
+thread 'descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset' (393497) panicked at src/descriptor.rs:845:9:
+assertion failed: matches!(walk.next(), Some(Ok(_)))
+
+---- descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough stdout ----
+
+thread 'descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough' (393498) panicked at src/descriptor.rs:782:52:
+called `Result::unwrap()` on an `Err` value: NoBootKeyboard
+
+---- descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated stdout ----
+
+thread 'descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated' (393500) panicked at src/descriptor.rs:669:9:
+assertion failed: find_boot_keyboard(&configuration).is_ok()
+
+---- descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun stdout ----
+
+thread 'descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun' (393501) panicked at src/descriptor.rs:678:9:
+assertion failed: find_boot_keyboard(&configuration).is_ok()
+
+---- descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint stdout ----
+
+thread 'descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint' (393503) panicked at src/descriptor.rs:638:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Err(NoInterruptIn { interface: 0 })
+
+---- descriptor::tests::an_endpoint_smaller_than_a_report_is_refused stdout ----
+
+thread 'descriptor::tests::an_endpoint_smaller_than_a_report_is_refused' (393504) panicked at src/descriptor.rs:885:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Err(PacketTooSmall { maximum_packet_bytes: 4 })
+
+---- descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops stdout ----
+
+thread 'descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops' (393502) panicked at src/descriptor.rs:656:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Err(Malformed { at: 27 })
+
+---- descriptor::tests::only_an_interrupt_in_endpoint_counts stdout ----
+
+thread 'descriptor::tests::only_an_interrupt_in_endpoint_counts' (393505) panicked at src/descriptor.rs:626:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Err(NoInterruptIn { interface: 0 })
+
+---- descriptor::tests::qemus_keyboard_is_found stdout ----
+
+thread 'descriptor::tests::qemus_keyboard_is_found' (393506) panicked at src/descriptor.rs:558:9:
+assertion `left == right` failed
+  left: Err(NoBootKeyboard)
+ right: Ok(BootKeyboard { configuration: 1, interface: 0, endpoint: 129, maximum_packet_bytes: 8, interval: 7 })
+
+---- descriptor::tests::the_descriptors_are_walked_whole_and_in_order stdout ----
+
+thread 'descriptor::tests::the_descriptors_are_walked_whole_and_in_order' (393508) panicked at src/descriptor.rs:828:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Ok([9, 4, 0, 0, 1, 3, 1, 1, 0]))
+
+---- descriptor::tests::the_endpoint_carries_only_its_number_and_direction stdout ----
+
+thread 'descriptor::tests::the_endpoint_carries_only_its_number_and_direction' (393509) panicked at src/descriptor.rs:857:55:
+called `Result::unwrap()` on an `Err` value: NoBootKeyboard
+
+
+failures:
+    descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number
+    descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over
+    descriptor::tests::a_composite_keyboard_answers_its_boot_interface
+    descriptor::tests::a_keyboard_behind_another_interface_is_found
+    descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset
+    descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough
+    descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated
+    descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun
+    descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops
+    descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint
+    descriptor::tests::an_endpoint_smaller_than_a_report_is_refused
+    descriptor::tests::only_an_interrupt_in_endpoint_counts
+    descriptor::tests::qemus_keyboard_is_found
+    descriptor::tests::the_descriptors_are_walked_whole_and_in_order
+    descriptor::tests::the_endpoint_carries_only_its_number_and_direction
+
+test result: FAILED. 23 passed; 15 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p universal_serial_bus --lib`
+
+*** result: Failure(101)

@@ -1,0 +1,31 @@
+--- src/request.rs
++++ replace SetupPacket::set_boot_protocol -> SetupPacket with Default::default()
+@@ -274,27 +274,17 @@
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::SetupPacket;
+     ///
+     /// assert_eq!(SetupPacket::set_boot_protocol(0).to_le_bytes(), [0x21, 0x0b, 0, 0, 0, 0, 0, 0]);
+     /// ```
+     pub const fn set_boot_protocol(interface: u8) -> SetupPacket {
+-        SetupPacket {
+-            request_type: RequestType::new(
+-                Direction::HostToDevice,
+-                RequestKind::Class,
+-                Recipient::Interface,
+-            ),
+-            request: SET_PROTOCOL,
+-            value: BOOT_PROTOCOL,
+-            index: interface as u16,
+-            length: 0,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// HID `SET_IDLE` with a duration of zero on `interface`: report only when something changes.
+     /// What a boot keyboard defaults to in practice, asked for because a device that repeated
+     /// its last report would look like a key held down to nothing at all.
+     ///
+     /// # Examples
+     ///

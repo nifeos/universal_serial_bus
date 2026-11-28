@@ -1,0 +1,24 @@
+--- src/descriptor.rs
++++ replace Descriptors<'a>::malformed -> Option<Result<&'a[u8], Refusal>> with Some(Ok(Vec::leak(Vec::new())))
+@@ -386,20 +386,17 @@
+     /// }
+     /// ```
+     pub fn header(&self) -> ConfigurationHeader {
+         self.header
+     }
+ 
+     /// End the walk with a refusal naming the descriptor at `at`.
+     fn malformed(&mut self, at: usize) -> Option<Result<&'a [u8], Refusal>> {
+-        self.done = true;
+-        Some(Err(Refusal::Malformed {
+-            at: u16::try_from(at).unwrap_or(u16::MAX),
+-        }))
++        Some(Ok(Vec::leak(Vec::new()))) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<'a> Iterator for Descriptors<'a> {
+     type Item = Result<&'a [u8], Refusal>;
+ 
+     fn next(&mut self) -> Option<Result<&'a [u8], Refusal>> {
+         let configuration = self.configuration;

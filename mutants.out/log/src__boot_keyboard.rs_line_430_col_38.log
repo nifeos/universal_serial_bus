@@ -1,0 +1,87 @@
+
+*** src/boot_keyboard.rs:430:38: replace - with + in <impl Iterator for Changes>::next
+
+*** mutation diff:
+--- src/boot_keyboard.rs
++++ replace - with + in <impl Iterator for Changes>::next
+@@ -422,17 +422,17 @@
+     type Item = KeyChange;
+ 
+     fn next(&mut self) -> Option<KeyChange> {
+         if self.pending == 0 {
+             return None;
+         }
+         // The lowest pending bit is below twenty, so it fits a u8.
+         let position = self.pending.trailing_zeros() as u8;
+-        self.pending &= self.pending - 1;
++        self.pending &= self.pending + /* ~ changed by cargo-mutants ~ */ 1;
+         Some(self.at(position))
+     }
+ 
+     fn size_hint(&self) -> (usize, Option<usize>) {
+         let left = self.pending.count_ones() as usize;
+         (left, Some(left))
+     }
+ }
+
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=universal_serial_bus@0.1.0
+       Dirty universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp): the file `src/boot_keyboard.rs` has changed (1795828316.971393626s, 627997991ns after last build at 1795828316.343395635s)
+   Compiling universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies`
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.62s
+  Executable `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+*** result: Success
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=universal_serial_bus@0.1.0
+       Fresh universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+running 38 tests
+test boot_keyboard::tests::a_built_report_is_one_the_parser_would_accept ... ok
+test boot_keyboard::tests::a_phantom_report_is_refused_rather_than_read_as_a_release ... ok
+test boot_keyboard::tests::the_code_lookup_answers_for_the_eight_modifiers_by_their_usage ... ok
+test boot_keyboard::tests::the_table_matches_its_linux_cross_check ... ok
+test boot_keyboard::tests::the_usage_table_matches_the_keycaps ... ok
+test descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number ... ok
+test boot_keyboard::tests::the_changes_iterator_knows_its_length_and_stays_done ... FAILED
+test descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over ... ok
+test descriptor::tests::a_configuration_header_is_nine_bytes_of_type_two ... ok
+test descriptor::tests::a_composite_keyboard_answers_its_boot_interface ... ok
+test descriptor::tests::a_device_descriptor_reads_its_own_length ... ok
+test descriptor::tests::a_keyboard_behind_another_interface_is_found ... ok
+test descriptor::tests::a_device_descriptor_parses_and_a_short_one_does_not ... ok
+test descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset ... ok
+test descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough ... ok
+test descriptor::tests::a_storage_device_is_refused_as_not_a_keyboard ... ok
+test descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated ... ok
+test descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun ... ok
+test descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops ... ok
+test descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint ... ok
+test descriptor::tests::an_endpoint_smaller_than_a_report_is_refused ... ok
+test descriptor::tests::only_an_interrupt_in_endpoint_counts ... ok
+test descriptor::tests::qemus_keyboard_is_found ... ok
+test descriptor::tests::the_control_packet_size_is_checked_against_the_speed ... ok
+test descriptor::tests::the_descriptors_are_walked_whole_and_in_order ... ok
+test descriptor::tests::the_endpoint_carries_only_its_number_and_direction ... ok
+test request::tests::a_packet_reads_back_from_its_bytes ... ok
+test request::tests::a_reserved_request_type_is_refused ... ok
+test request::tests::a_request_type_packs_its_three_parts ... ok
+test request::tests::get_descriptor_is_the_bytes_the_wire_carries ... ok
+test request::tests::the_class_requests_are_sent_to_the_interface ... ok
+test boot_keyboard::tests::a_duplicated_usage_presses_once has been running for over 60 seconds
+test boot_keyboard::tests::a_duplicated_usage_releases_once has been running for over 60 seconds
+test boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release has been running for over 60 seconds
+test boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once has been running for over 60 seconds
+test boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages has been running for over 60 seconds
+test boot_keyboard::tests::echo_hello_decodes_key_by_key has been running for over 60 seconds
+test boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first has been running for over 60 seconds
+error: test failed, to rerun pass `-p universal_serial_bus --lib`
+
+Caused by:
+  process didn't exit successfully: `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500` (signal: 9, SIGKILL: kill)
+
+*** result: Failure(101)

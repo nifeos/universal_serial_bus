@@ -1,0 +1,27 @@
+--- src/boot_keyboard.rs
++++ replace <impl Iterator for Changes>::next -> Option<KeyChange> with Some(Default::default())
+@@ -417,23 +417,17 @@
+         }
+     }
+ }
+ 
+ impl Iterator for Changes {
+     type Item = KeyChange;
+ 
+     fn next(&mut self) -> Option<KeyChange> {
+-        if self.pending == 0 {
+-            return None;
+-        }
+-        // The lowest pending bit is below twenty, so it fits a u8.
+-        let position = self.pending.trailing_zeros() as u8;
+-        self.pending &= self.pending - 1;
+-        Some(self.at(position))
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn size_hint(&self) -> (usize, Option<usize>) {
+         let left = self.pending.count_ones() as usize;
+         (left, Some(left))
+     }
+ }
+ 

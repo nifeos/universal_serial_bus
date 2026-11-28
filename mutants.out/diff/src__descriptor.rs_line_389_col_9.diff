@@ -1,0 +1,21 @@
+--- src/descriptor.rs
++++ replace Descriptors<'a>::header -> ConfigurationHeader with Default::default()
+@@ -381,17 +381,17 @@
+     /// fn main() -> Result<(), Refusal> {
+     ///     let walk = Descriptors::new(&[9, 2, 9, 0, 0, 1, 0, 0x80, 50])?;
+     ///     assert_eq!(walk.header().value, 1);
+     ///     assert_eq!(walk.count(), 0); // a header with nothing beneath it
+     ///     Ok(())
+     /// }
+     /// ```
+     pub fn header(&self) -> ConfigurationHeader {
+-        self.header
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// End the walk with a refusal naming the descriptor at `at`.
+     fn malformed(&mut self, at: usize) -> Option<Result<&'a [u8], Refusal>> {
+         self.done = true;
+         Some(Err(Refusal::Malformed {
+             at: u16::try_from(at).unwrap_or(u16::MAX),
+         }))

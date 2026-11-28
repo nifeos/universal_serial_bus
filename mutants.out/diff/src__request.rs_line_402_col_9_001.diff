@@ -1,0 +1,33 @@
+--- src/request.rs
++++ replace SetupPacket::parse -> Option<SetupPacket> with Some(Default::default())
+@@ -394,29 +394,17 @@
+     /// # fn example() -> Option<()> {
+     /// let packet = SetupPacket::parse(&[0x21, 0x0b, 0, 0, 1, 0, 0, 0])?;
+     /// assert_eq!(packet, SetupPacket::set_boot_protocol(1));
+     /// assert_eq!(SetupPacket::parse(&[0x21, 0x0b]), None);
+     /// # Some(())
+     /// # }
+     /// ```
+     pub const fn parse(bytes: &[u8]) -> Option<SetupPacket> {
+-        if bytes.len() < SETUP_PACKET_BYTES {
+-            return None;
+-        }
+-        let Some(request_type) = RequestType::parse(bytes[0]) else {
+-            return None;
+-        };
+-        Some(SetupPacket {
+-            request_type,
+-            request: bytes[1],
+-            value: u16::from_le_bytes([bytes[2], bytes[3]]),
+-            index: u16::from_le_bytes([bytes[4], bytes[5]]),
+-            length: u16::from_le_bytes([bytes[6], bytes[7]]),
+-        })
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<SetupPacket> for [u8; SETUP_PACKET_BYTES] {
+     /// The packet's bytes on the wire, as [`SetupPacket::to_le_bytes`] gives them.
+     fn from(packet: SetupPacket) -> [u8; SETUP_PACKET_BYTES] {
+         packet.to_le_bytes()
+     }

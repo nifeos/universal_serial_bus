@@ -849,6 +849,27 @@ mod tests {
         assert_eq!(cut.count(), 2);
     }
 
+    /// A two-byte descriptor that ends exactly at `wTotalLength` is still yielded, and a
+    /// descriptor's layout is read from its type byte, not its length byte: a three-byte endpoint
+    /// descriptor is refused even though a type of 3 would need only two bytes.
+    #[test]
+    fn the_walk_reads_to_the_last_byte_and_checks_the_layout_by_type() {
+        let header = [9, 2, 11, 0, 1, 1, 0, 0xa0, 50];
+        let mut configuration = [0u8; 11];
+        configuration[..9].copy_from_slice(&header);
+        configuration[9..].copy_from_slice(&[2, 0x30]);
+        let mut walk = Descriptors::new(&configuration).unwrap();
+        assert_eq!(walk.next(), Some(Ok(&configuration[9..11])));
+        assert_eq!(walk.next(), None);
+
+        let mut configuration = [0u8; 12];
+        configuration[..9].copy_from_slice(&header);
+        configuration[2] = 12;
+        configuration[9..].copy_from_slice(&[3, ENDPOINT, 0x81]);
+        let mut walk = Descriptors::new(&configuration).unwrap();
+        assert_eq!(walk.next(), Some(Err(Refusal::Malformed { at: 9 })));
+    }
+
     /// The reserved bits of `bEndpointAddress` do not reach the caller.
     #[test]
     fn the_endpoint_carries_only_its_number_and_direction() {

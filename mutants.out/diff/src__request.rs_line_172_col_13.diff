@@ -1,0 +1,21 @@
+--- src/request.rs
++++ delete match arm 1 in RequestType::kind
+@@ -164,17 +164,17 @@
+     /// ```
+     /// use universal_serial_bus::request::{RequestKind, SetupPacket};
+     ///
+     /// assert_eq!(SetupPacket::set_idle_forever(0).request_type.kind(), RequestKind::Class);
+     /// ```
+     pub const fn kind(self) -> RequestKind {
+         match (self.0 >> 5) & 0x3 {
+             0 => RequestKind::Standard,
+-            1 => RequestKind::Class,
++             /* ~ changed by cargo-mutants ~ */
+             _ => RequestKind::Vendor,
+         }
+     }
+ 
+     /// What the request is addressed to.
+     ///
+     /// # Examples
+     ///

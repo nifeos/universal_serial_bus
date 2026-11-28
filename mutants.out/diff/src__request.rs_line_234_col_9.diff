@@ -1,0 +1,31 @@
+--- src/request.rs
++++ replace SetupPacket::get_descriptor -> SetupPacket with Default::default()
+@@ -226,27 +226,17 @@
+     /// ```
+     /// use universal_serial_bus::descriptor::DEVICE;
+     /// use universal_serial_bus::request::SetupPacket;
+     ///
+     /// let packet = SetupPacket::get_descriptor(DEVICE, 0, 8);
+     /// assert_eq!(packet.to_le_bytes(), [0x80, 6, 0, 1, 0, 0, 8, 0]);
+     /// ```
+     pub const fn get_descriptor(kind: u8, index: u8, length: u16) -> SetupPacket {
+-        SetupPacket {
+-            request_type: RequestType::new(
+-                Direction::DeviceToHost,
+-                RequestKind::Standard,
+-                Recipient::Device,
+-            ),
+-            request: GET_DESCRIPTOR,
+-            value: (kind as u16) << 8 | index as u16,
+-            index: 0,
+-            length,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// `SET_CONFIGURATION` to the configuration whose `bConfigurationValue` is `value`.
+     ///
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::SetupPacket;

@@ -1,0 +1,21 @@
+--- src/request.rs
++++ delete match arm 2 in RequestType::recipient
+@@ -182,17 +182,17 @@
+     /// use universal_serial_bus::request::{Recipient, SetupPacket};
+     ///
+     /// assert_eq!(SetupPacket::set_configuration(1).request_type.recipient(), Recipient::Device);
+     /// ```
+     pub const fn recipient(self) -> Recipient {
+         match self.0 & 0x1f {
+             0 => Recipient::Device,
+             1 => Recipient::Interface,
+-            2 => Recipient::Endpoint,
++             /* ~ changed by cargo-mutants ~ */
+             _ => Recipient::Other,
+         }
+     }
+ }
+ 
+ /// How many bytes a setup packet holds (USB 2.0 Table 9-2).
+ pub const SETUP_PACKET_BYTES: usize = 8;
+ 

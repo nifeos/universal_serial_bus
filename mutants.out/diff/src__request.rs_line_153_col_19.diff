@@ -1,0 +1,21 @@
+--- src/request.rs
++++ replace & with | in RequestType::direction
+@@ -145,17 +145,17 @@
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::{Direction, SetupPacket};
+     ///
+     /// assert_eq!(SetupPacket::get_descriptor(1, 0, 18).request_type.direction(), Direction::DeviceToHost);
+     /// ```
+     pub const fn direction(self) -> Direction {
+-        if self.0 & DEVICE_TO_HOST != 0 {
++        if self.0 | /* ~ changed by cargo-mutants ~ */ DEVICE_TO_HOST != 0 {
+             Direction::DeviceToHost
+         } else {
+             Direction::HostToDevice
+         }
+     }
+ 
+     /// Who defines the request.
+     ///

@@ -1,0 +1,33 @@
+--- src/request.rs
++++ replace SetupPacket::to_le_bytes -> [u8; SETUP_PACKET_BYTES] with [0; SETUP_PACKET_BYTES]
+@@ -354,29 +354,17 @@
+     ///
+     /// ```
+     /// use universal_serial_bus::request::SetupPacket;
+     ///
+     /// let bytes = SetupPacket::get_descriptor(2, 0, 34).to_le_bytes();
+     /// assert_eq!(bytes, [0x80, 6, 0, 2, 0, 0, 34, 0]);
+     /// ```
+     pub const fn to_le_bytes(&self) -> [u8; SETUP_PACKET_BYTES] {
+-        let value = self.value.to_le_bytes();
+-        let index = self.index.to_le_bytes();
+-        let length = self.length.to_le_bytes();
+-        [
+-            self.request_type.get(),
+-            self.request,
+-            value[0],
+-            value[1],
+-            index[0],
+-            index[1],
+-            length[0],
+-            length[1],
+-        ]
++        [0; SETUP_PACKET_BYTES] /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// **Read a setup packet from the bytes on the wire**, as a test or a device-side reader does.
+     /// `None` for fewer than [`SETUP_PACKET_BYTES`] bytes, and for a `bmRequestType` that holds a
+     /// reserved value ([`RequestType::parse`]). A longer buffer is accepted and its tail ignored.
+     ///
+     /// # Errors
+     ///

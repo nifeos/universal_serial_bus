@@ -1,0 +1,22 @@
+--- src/boot_keyboard.rs
++++ replace <impl Iterator for Changes>::size_hint -> (usize, Option<usize>) with (1, Some(0))
+@@ -427,18 +427,17 @@
+         }
+         // The lowest pending bit is below twenty, so it fits a u8.
+         let position = self.pending.trailing_zeros() as u8;
+         self.pending &= self.pending - 1;
+         Some(self.at(position))
+     }
+ 
+     fn size_hint(&self) -> (usize, Option<usize>) {
+-        let left = self.pending.count_ones() as usize;
+-        (left, Some(left))
++        (1, Some(0)) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl ExactSizeIterator for Changes {}
+ 
+ impl core::iter::FusedIterator for Changes {}
+ 
+ /// **What changed from `before` to `after`**, as an iterator of [`KeyChange`]s in the order that

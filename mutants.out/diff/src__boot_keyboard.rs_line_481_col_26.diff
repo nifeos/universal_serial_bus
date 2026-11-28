@@ -1,0 +1,21 @@
+--- src/boot_keyboard.rs
++++ replace << with >> in changes
+@@ -473,17 +473,17 @@
+ /// assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
+ /// # Some(())
+ /// # }
+ /// ```
+ pub fn changes(before: &BootReport, after: &BootReport) -> Changes {
+     let mut pending = 0;
+     for position in 0..CHANGE_POSITIONS {
+         if Changes::has_changed_at(before, after, position) {
+-            pending |= 1 << position;
++            pending |= 1 >> /* ~ changed by cargo-mutants ~ */ position;
+         }
+     }
+     Changes {
+         before: *before,
+         after: *after,
+         pending,
+     }
+ }

@@ -1,0 +1,73 @@
+
+*** src/request.rs:187:9: replace RequestType::recipient -> Recipient with Default::default()
+
+*** mutation diff:
+--- src/request.rs
++++ replace RequestType::recipient -> Recipient with Default::default()
+@@ -179,22 +179,17 @@
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::request::{Recipient, SetupPacket};
+     ///
+     /// assert_eq!(SetupPacket::set_configuration(1).request_type.recipient(), Recipient::Device);
+     /// ```
+     pub const fn recipient(self) -> Recipient {
+-        match self.0 & 0x1f {
+-            0 => Recipient::Device,
+-            1 => Recipient::Interface,
+-            2 => Recipient::Endpoint,
+-            _ => Recipient::Other,
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// How many bytes a setup packet holds (USB 2.0 Table 9-2).
+ pub const SETUP_PACKET_BYTES: usize = 8;
+ 
+ /// **One setup packet.** Field names are the specification's, without the Hungarian prefixes.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=universal_serial_bus@0.1.0
+       Dirty universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp): the file `src/request.rs` has changed (1795828519.146685857s, 1s after last build at 1795828518.469680718s)
+   Compiling universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies`
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies`
+error[E0277]: the trait bound `Recipient: Default` is not satisfied
+   --> src/request.rs:187:9
+    |
+187 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Recipient`
+    |
+help: consider annotating `Recipient` with `#[derive(Default)]`
+    |
+ 52 + #[derive(Default)]
+ 53 | pub enum Recipient {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `universal_serial_bus` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `request::Recipient: Default` is not satisfied
+   --> src/request.rs:187:9
+    |
+187 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `request::Recipient`
+    |
+help: consider annotating `request::Recipient` with `#[derive(Default)]`
+    |
+ 52 + #[derive(Default)]
+ 53 | pub enum Recipient {
+    |
+
+error: could not compile `universal_serial_bus` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies` (exit status: 1)
+
+*** result: Failure(101)

@@ -1,0 +1,21 @@
+--- src/descriptor.rs
++++ replace + with - in <impl Iterator for Descriptors<'a>>::next
+@@ -425,17 +425,17 @@
+         let layout = match configuration[at + 1] {
+             INTERFACE => INTERFACE_DESCRIPTOR_BYTES,
+             ENDPOINT => ENDPOINT_DESCRIPTOR_BYTES,
+             _ => 2,
+         };
+         if len < layout {
+             return self.malformed(at);
+         }
+-        self.at = at + len;
++        self.at = at - /* ~ changed by cargo-mutants ~ */ len;
+         Some(Ok(&configuration[at..at + len]))
+     }
+ }
+ 
+ impl core::iter::FusedIterator for Descriptors<'_> {}
+ 
+ /// **Find the boot keyboard in a configuration**: the first interface (alternate setting 0) of
+ /// class 3, subclass 1, protocol 1, and the first interrupt `IN` endpoint beneath it.

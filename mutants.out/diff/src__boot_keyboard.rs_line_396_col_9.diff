@@ -1,0 +1,42 @@
+--- src/boot_keyboard.rs
++++ replace Changes::at -> KeyChange with Default::default()
+@@ -388,38 +388,17 @@
+             (after, before, usize::from(position - 14))
+         };
+         let usage = from.keys[slot];
+         usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage)
+     }
+ 
+     /// The change at `position`, which [`Changes::has_changed_at`] found changed.
+     fn at(&self, position: u8) -> KeyChange {
+-        if position < 8 {
+-            let action = if self.after.modifiers & (1 << position) != 0 {
+-                KeyAction::Press
+-            } else {
+-                KeyAction::Release
+-            };
+-            return KeyChange {
+-                usage: FIRST_MODIFIER_USAGE + position,
+-                action,
+-            };
+-        }
+-        if position < 14 {
+-            KeyChange {
+-                usage: self.before.keys[usize::from(position - 8)],
+-                action: KeyAction::Release,
+-            }
+-        } else {
+-            KeyChange {
+-                usage: self.after.keys[usize::from(position - 14)],
+-                action: KeyAction::Press,
+-            }
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl Iterator for Changes {
+     type Item = KeyChange;
+ 
+     fn next(&mut self) -> Option<KeyChange> {
+         if self.pending == 0 {

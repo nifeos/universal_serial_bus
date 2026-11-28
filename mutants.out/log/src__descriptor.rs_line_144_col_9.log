@@ -1,0 +1,87 @@
+
+*** src/descriptor.rs:144:9: replace DeviceDescriptor::parse -> Result<DeviceDescriptor, Refusal> with Ok(Default::default())
+
+*** mutation diff:
+--- src/descriptor.rs
++++ replace DeviceDescriptor::parse -> Result<DeviceDescriptor, Refusal> with Ok(Default::default())
+@@ -136,36 +136,17 @@
+     ///     let bytes = [18, 1, 0, 2, 0, 0, 0, 64, 0x27, 0x06, 1, 0, 0, 0, 1, 2, 3, 1];
+     ///     let device = DeviceDescriptor::parse(&bytes)?;
+     ///     assert_eq!((device.vendor, device.product), (0x0627, 0x0001));
+     ///     assert_eq!(DeviceDescriptor::parse(&bytes[..8]), Err(Refusal::Truncated));
+     ///     Ok(())
+     /// }
+     /// ```
+     pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
+-        if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
+-            return Err(Refusal::Truncated);
+-        }
+-        if (bytes[0] as usize) < DEVICE_DESCRIPTOR_BYTES || bytes[1] != DEVICE {
+-            return Err(Refusal::NotThatDescriptor);
+-        }
+-        Ok(DeviceDescriptor {
+-            usb_release_binary_coded_decimal: u16::from_le_bytes([bytes[2], bytes[3]]),
+-            class: bytes[4],
+-            subclass: bytes[5],
+-            protocol: bytes[6],
+-            control_packet_size_code: bytes[7],
+-            vendor: u16::from_le_bytes([bytes[8], bytes[9]]),
+-            product: u16::from_le_bytes([bytes[10], bytes[11]]),
+-            device_release_binary_coded_decimal: u16::from_le_bytes([bytes[12], bytes[13]]),
+-            manufacturer_string_index: bytes[14],
+-            product_string_index: bytes[15],
+-            serial_number_string_index: bytes[16],
+-            configurations: bytes[17],
+-        })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// **The speed a device runs at**, in the USB specification's terms. It is USB vocabulary and not
+ /// a host controller's numbering: a host controller driver maps its own port speed onto it. A
+ /// later release may name another speed, so a `match` on it ends in a wildcard arm.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ #[non_exhaustive]
+
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=universal_serial_bus@0.1.0
+       Dirty universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp): the file `src/boot_keyboard.rs` has changed (1795828473.102336311s, 1s after last build at 1795828472.476331559s)
+   Compiling universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies`
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies`
+error[E0277]: the trait bound `DeviceDescriptor: Default` is not satisfied
+   --> src/descriptor.rs:144:12
+    |
+144 |         Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `DeviceDescriptor`
+    |
+help: consider annotating `DeviceDescriptor` with `#[derive(Default)]`
+    |
+ 81 + #[derive(Default)]
+ 82 | pub struct DeviceDescriptor {
+    |
+
+error[E0277]: the trait bound `descriptor::DeviceDescriptor: Default` is not satisfied
+   --> src/descriptor.rs:144:12
+    |
+144 |         Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `descriptor::DeviceDescriptor`
+    |
+help: consider annotating `descriptor::DeviceDescriptor` with `#[derive(Default)]`
+    |
+ 81 + #[derive(Default)]
+ 82 | pub struct DeviceDescriptor {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `universal_serial_bus` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `universal_serial_bus` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies` (exit status: 1)
+
+*** result: Failure(101)

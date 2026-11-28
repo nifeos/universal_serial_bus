@@ -1,0 +1,30 @@
+--- src/descriptor.rs
++++ delete match arm INTERFACE in find_boot_keyboard
+@@ -487,26 +487,17 @@
+     // The last boot keyboard interface that ended with no interrupt IN, for the refusal.
+     let mut without_endpoint: Option<u8> = None;
+     // An endpoint refused for its packet size, for the refusal, if nothing better turns up.
+     let mut too_small: Option<u16> = None;
+ 
+     for d in descriptors {
+         let d = d?;
+         match d[1] {
+-            INTERFACE => {
+-                if let Some(interface) = candidate {
+-                    without_endpoint = Some(interface);
+-                }
+-                let is_boot_keyboard = d[3] == 0 // alternate setting 0, the one SET_CONFIGURATION selects
+-                    && d[5] == CLASS_HID
+-                    && d[6] == SUBCLASS_BOOT
+-                    && d[7] == PROTOCOL_KEYBOARD;
+-                candidate = is_boot_keyboard.then_some(d[2]);
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             ENDPOINT => {
+                 if let Some(interface) = candidate {
+                     let endpoint_number_and_direction = d[2] & 0x8f;
+                     let interrupt = d[3] & 0x3 == 0x3;
+                     let inbound = endpoint_number_and_direction & 0x80 != 0;
+                     let number = endpoint_number_and_direction & 0x0f;
+                     let maximum_packet_bytes = u16::from_le_bytes([d[4], d[5]]) & 0x07ff;
+                     if interrupt && inbound && number != 0 {

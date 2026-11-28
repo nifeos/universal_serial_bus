@@ -1,0 +1,21 @@
+--- src/request.rs
++++ replace < with <= in SetupPacket::parse
+@@ -394,17 +394,17 @@
+     /// # fn example() -> Option<()> {
+     /// let packet = SetupPacket::parse(&[0x21, 0x0b, 0, 0, 1, 0, 0, 0])?;
+     /// assert_eq!(packet, SetupPacket::set_boot_protocol(1));
+     /// assert_eq!(SetupPacket::parse(&[0x21, 0x0b]), None);
+     /// # Some(())
+     /// # }
+     /// ```
+     pub const fn parse(bytes: &[u8]) -> Option<SetupPacket> {
+-        if bytes.len() < SETUP_PACKET_BYTES {
++        if bytes.len() <= /* ~ changed by cargo-mutants ~ */ SETUP_PACKET_BYTES {
+             return None;
+         }
+         let Some(request_type) = RequestType::parse(bytes[0]) else {
+             return None;
+         };
+         Some(SetupPacket {
+             request_type,
+             request: bytes[1],

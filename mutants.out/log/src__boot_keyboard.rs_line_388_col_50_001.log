@@ -1,0 +1,141 @@
+
+*** src/boot_keyboard.rs:388:50: replace - with / in Changes::has_changed_at
+
+*** mutation diff:
+--- src/boot_keyboard.rs
++++ replace - with / in Changes::has_changed_at
+@@ -380,17 +380,17 @@
+             return (before.modifiers ^ after.modifiers) & (1 << position) != 0;
+         }
+         // A key goes up when the earlier report holds it and the later one does not, and down
+         // the other way round. Only its first slot counts, so a usage a confused device reports
+         // twice changes once.
+         let (from, to, slot) = if position < 14 {
+             (before, after, usize::from(position - 8))
+         } else {
+-            (after, before, usize::from(position - 14))
++            (after, before, usize::from(position / /* ~ changed by cargo-mutants ~ */ 14))
+         };
+         let usage = from.keys[slot];
+         usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage)
+     }
+ 
+     /// The change at `position`, which [`Changes::has_changed_at`] found changed.
+     fn at(&self, position: u8) -> KeyChange {
+         if position < 8 {
+
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=universal_serial_bus@0.1.0
+       Dirty universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp): the file `src/boot_keyboard.rs` has changed (1795828308.059422131s, 1s after last build at 1795828307.415424191s)
+   Compiling universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=ad7ab0d505f09941 -C extra-filename=-4733f4800b38e500 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out --force-warn=unused_crate_dependencies`
+     Running `/home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name universal_serial_bus --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --warn=unsafe_op_in_unsafe_fn --warn=unexpected_cfgs '--warn=clippy::semicolon_if_nothing_returned' '--warn=clippy::ptr_as_ptr' --warn=missing_docs '--warn=clippy::manual_let_else' '--warn=clippy::doc_markdown' '--warn=clippy::cast_ptr_alignment' --check-cfg 'cfg(kani)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=36561b774bb9078e -C extra-filename=-c8d24c9ca31ff746 --out-dir /home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/c8d24c9ca31ff746/out --force-warn=unused_crate_dependencies`
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.57s
+  Executable `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+*** result: Success
+
+*** /home/calef/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=universal_serial_bus@0.1.0
+       Fresh universal_serial_bus v0.1.0 (/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `/home/calef/.cache/tmp/claude-1000/-home-calef-projects-nifeos/a00d4dc3-93c9-44f5-9c08-9699682332ca/scratchpad/cargo-mutants-release-review-1148-1Fd9uK.tmp/target/debug/build/universal_serial_bus/4733f4800b38e500/out/universal_serial_bus-4733f4800b38e500`
+
+running 38 tests
+test boot_keyboard::tests::a_duplicated_usage_releases_once ... ok
+test boot_keyboard::tests::a_phantom_report_is_refused_rather_than_read_as_a_release ... ok
+test boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once ... FAILED
+test boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release ... FAILED
+test boot_keyboard::tests::a_duplicated_usage_presses_once ... FAILED
+test boot_keyboard::tests::a_built_report_is_one_the_parser_would_accept ... ok
+test boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages ... FAILED
+test boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first ... FAILED
+test boot_keyboard::tests::echo_hello_decodes_key_by_key ... FAILED
+test boot_keyboard::tests::the_code_lookup_answers_for_the_eight_modifiers_by_their_usage ... ok
+test boot_keyboard::tests::the_table_matches_its_linux_cross_check ... ok
+test boot_keyboard::tests::the_usage_table_matches_the_keycaps ... ok
+test boot_keyboard::tests::the_changes_iterator_knows_its_length_and_stays_done ... ok
+test descriptor::tests::a_boot_mouse_with_a_wide_endpoint_is_passed_over ... ok
+test descriptor::tests::a_composite_keyboard_answers_its_boot_interface ... ok
+test descriptor::tests::a_boot_interface_without_an_endpoint_is_refused_by_number ... ok
+test descriptor::tests::a_configuration_header_is_nine_bytes_of_type_two ... ok
+test descriptor::tests::a_device_descriptor_parses_and_a_short_one_does_not ... ok
+test descriptor::tests::a_device_descriptor_reads_its_own_length ... ok
+test descriptor::tests::a_keyboard_behind_another_interface_is_found ... ok
+test descriptor::tests::a_short_interface_or_endpoint_is_malformed_and_two_bytes_is_enough ... ok
+test descriptor::tests::a_trailing_defect_after_the_keyboard_is_tolerated ... ok
+test descriptor::tests::a_storage_device_is_refused_as_not_a_keyboard ... ok
+test descriptor::tests::a_zero_or_overlong_length_is_malformed_and_never_loops ... ok
+test descriptor::tests::a_malformed_descriptor_ends_the_walk_with_its_offset ... ok
+test descriptor::tests::an_endpoint_numbered_zero_is_not_the_report_endpoint ... ok
+test descriptor::tests::an_endpoint_smaller_than_a_report_is_refused ... ok
+test descriptor::tests::a_truncated_read_is_a_shorter_walk_not_an_overrun ... ok
+test descriptor::tests::only_an_interrupt_in_endpoint_counts ... ok
+test descriptor::tests::qemus_keyboard_is_found ... ok
+test descriptor::tests::the_control_packet_size_is_checked_against_the_speed ... ok
+test descriptor::tests::the_descriptors_are_walked_whole_and_in_order ... ok
+test descriptor::tests::the_endpoint_carries_only_its_number_and_direction ... ok
+test request::tests::a_request_type_packs_its_three_parts ... ok
+test request::tests::a_packet_reads_back_from_its_bytes ... ok
+test request::tests::get_descriptor_is_the_bytes_the_wire_carries ... ok
+test request::tests::a_reserved_request_type_is_refused ... ok
+test request::tests::the_class_requests_are_sent_to_the_interface ... ok
+
+failures:
+
+---- boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once stdout ----
+
+thread 'boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once' (270281) panicked at src/boot_keyboard.rs:658:9:
+assertion `left == right` failed
+  left: [(30, true), (48, true)]
+ right: [(48, true)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release stdout ----
+
+thread 'boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release' (270279) panicked at src/boot_keyboard.rs:645:9:
+assertion `left == right` failed
+  left: [(30, true), (48, true)]
+ right: [(48, true)]
+
+---- boot_keyboard::tests::a_duplicated_usage_presses_once stdout ----
+
+thread 'boot_keyboard::tests::a_duplicated_usage_presses_once' (270276) panicked at src/boot_keyboard.rs:705:9:
+assertion `left == right` failed
+  left: []
+ right: [(30, true)]
+
+---- boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages stdout ----
+
+thread 'boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages' (270282) panicked at src/boot_keyboard.rs:525:9:
+assertion `left == right` failed
+  left: [(225, true), (231, true)]
+ right: [(225, true), (231, true), (11, true)]
+
+---- boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first stdout ----
+
+thread 'boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first' (270284) panicked at src/boot_keyboard.rs:634:9:
+assertion `left == right` failed
+  left: [(54, true)]
+ right: [(54, true), (30, true)]
+
+---- boot_keyboard::tests::echo_hello_decodes_key_by_key stdout ----
+
+thread 'boot_keyboard::tests::echo_hello_decodes_key_by_key' (270283) panicked at src/boot_keyboard.rs:629:9:
+assertion `left == right` failed
+  left: []
+ right: [18, 46, 35, 24, 57, 35, 18, 38, 38, 24, 28]
+
+
+failures:
+    boot_keyboard::tests::a_duplicated_usage_presses_once
+    boot_keyboard::tests::a_held_modifier_is_quiet_and_its_release_is_a_release
+    boot_keyboard::tests::a_roll_presses_each_key_once_and_releases_it_once
+    boot_keyboard::tests::changes_emits_hid_usages_and_modifiers_as_their_own_usages
+    boot_keyboard::tests::echo_hello_decodes_key_by_key
+    boot_keyboard::tests::shift_and_a_letter_together_deliver_shift_first
+
+test result: FAILED. 32 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p universal_serial_bus --lib`
+
+*** result: Failure(101)

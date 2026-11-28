@@ -1,0 +1,21 @@
+--- src/boot_keyboard.rs
++++ replace - with + in Changes::at
+@@ -406,17 +406,17 @@
+         }
+         if position < 14 {
+             KeyChange {
+                 usage: self.before.keys[usize::from(position - 8)],
+                 action: KeyAction::Release,
+             }
+         } else {
+             KeyChange {
+-                usage: self.after.keys[usize::from(position - 14)],
++                usage: self.after.keys[usize::from(position + /* ~ changed by cargo-mutants ~ */ 14)],
+                 action: KeyAction::Press,
+             }
+         }
+     }
+ }
+ 
+ impl Iterator for Changes {
+     type Item = KeyChange;

@@ -1,0 +1,21 @@
+--- src/boot_keyboard.rs
++++ replace BootReport::modifiers -> u8 with 0
+@@ -141,17 +141,17 @@
+     /// # Examples
+     ///
+     /// ```
+     /// use universal_serial_bus::boot_keyboard::BootReport;
+     ///
+     /// assert_eq!(BootReport::new(0x22, [0; 6]).map(|r| r.modifiers()), Some(0x22)); // both shifts
+     /// ```
+     pub fn modifiers(&self) -> u8 {
+-        self.modifiers
++        0 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Bytes 2 to 7: the usage ids of the keys held, zero for an empty slot, in the order the
+     /// device sent them, which promises nothing.
+     ///
+     /// # Examples
+     ///
+     /// ```
