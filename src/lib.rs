@@ -9,7 +9,7 @@ pub mod descriptor;
 #[doc(alias = "usb")]
 pub mod request;
 
-pub use descriptor::Refusal;
+pub use descriptor::DescriptorError;
 
 #[cfg(kani)]
 mod verification;

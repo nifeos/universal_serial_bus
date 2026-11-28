@@ -1,4 +1,4 @@
-use super::Refusal;
+use super::DescriptorError;
 use super::boot_keyboard::{BootReport, KeyAction, changes};
 use super::descriptor::{
     CLASS_HID, CONFIGURATION, ConfigurationHeader, Descriptors, DeviceDescriptor, ENDPOINT,
@@ -165,7 +165,7 @@ fn two_interfaces_are_walked_as_two() {
                 "an endpoint of the boot interface it names"
             );
         }
-        Err(Refusal::NoInterruptIn { interface }) => {
+        Err(DescriptorError::NoInterruptIn { interface }) => {
             assert!(
                 interfaces
                     .iter()
@@ -173,7 +173,7 @@ fn two_interfaces_are_walked_as_two() {
                 "the refusal names a boot interface the buffer holds"
             );
         }
-        Err(Refusal::PacketTooSmall {
+        Err(DescriptorError::PacketTooSmall {
             maximum_packet_bytes,
         }) => {
             assert!(
@@ -189,7 +189,7 @@ fn two_interfaces_are_walked_as_two() {
             && !is_boot(25)
             && len == TOTAL
             && result
-                == Err(Refusal::NoInterruptIn {
+                == Err(DescriptorError::NoInterruptIn {
                     interface: bytes[11]
                 }),
         "a boot interface with no usable endpoint, closed by a second interface"

@@ -11,10 +11,10 @@ diff --git a/src/descriptor.rs b/src/descriptor.rs
 @@ -141,9 +141,6 @@
      /// }
      /// ```
-     pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
+     pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, DescriptorError> {
 -        if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
--            return Err(Refusal::Truncated);
+-            return Err(DescriptorError::Truncated);
 -        }
          if (bytes[0] as usize) < DEVICE_DESCRIPTOR_BYTES || bytes[1] != DEVICE {
-             return Err(Refusal::NotThatDescriptor);
+             return Err(DescriptorError::NotThatDescriptor);
          }

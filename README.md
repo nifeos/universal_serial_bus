@@ -32,11 +32,11 @@ Find a boot keyboard's endpoint in its configuration, then turn two of its repor
 changes:
 
 ```rust
-use universal_serial_bus::Refusal;
+use universal_serial_bus::DescriptorError;
 use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 use universal_serial_bus::descriptor::find_boot_keyboard;
 
-fn main() -> Result<(), Refusal> {
+fn main() -> Result<(), DescriptorError> {
     // A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters.
     let configuration = [
         9, 2, 34, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 34 bytes, one interface
@@ -158,7 +158,7 @@ the assertion that the patch breaks. `git checkout -- src` reverts the patch.
 
 - Boot protocol only: the crate finds a keyboard by its interface triple (class 3, subclass 1,
   protocol 1), parses no HID report descriptor, and refuses a device with no boot interface as
-  `Refusal::NoBootKeyboard`.
+  `DescriptorError::NoBootKeyboard`.
 - The first boot keyboard interface wins; the crate looks for no second keyboard.
 - No key repeat: a boot keyboard reports state, not events, and typematic repeat is the host's job.
 - No lock state and no light-emitting diodes (LEDs): the crate reports the lock keys as key presses,

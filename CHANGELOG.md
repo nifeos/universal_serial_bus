@@ -6,8 +6,8 @@ sentence beside it.
 ## Unreleased
 
 - First version.
-- `Refusal`, its struct variants, `Speed`, `DeviceDescriptor`, `ConfigurationHeader` and
-  `BootKeyboard` are non-exhaustive, so a later release can add a variant or a field without
+- `DescriptorError`, its struct variants, `Speed`, `DeviceDescriptor`, `ConfigurationHeader`
+  and `BootKeyboard` are non-exhaustive, so a later release can add a variant or a field without
   breaking a caller.
 - `BootReport`'s fields are private behind `modifiers()` and `keys()`, and `BootReport::new`
   refuses what the parser refuses, so no caller can build a phantom report.
@@ -24,8 +24,10 @@ sentence beside it.
 - Every fallible function documents its errors, every public function has an example, and the
   README is the crate page.
 - The package ships only the source, the README, the changelog and the licenses.
-- `Refusal` implements `Display` and `core::error::Error`, so a caller can print it or return it
-  through `?` into a boxed error.
+- `DescriptorError` implements `Display` and `core::error::Error`, so a caller can print it or
+  return it through `?` into a boxed error.
+- The descriptor parsers' error is `DescriptorError`, a name that ends in `Error`, and a
+  malformed descriptor's position is its field `offset`.
 
 ## BUGS
 
