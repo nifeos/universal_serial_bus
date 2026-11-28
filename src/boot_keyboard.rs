@@ -502,9 +502,14 @@ mod tests {
         BootReport::parse(&b).unwrap()
     }
 
+    /// One more than the twenty changes a pair of reports can hold. The test helpers read no
+    /// further, so an iterator that never ends fails a test instead of filling memory.
+    const MOST_CHANGES: usize = 21;
+
     /// The changes as evdev codes, pressed or not, as a caller with an evdev keymap reads them.
     fn difference(a: &BootReport, b: &BootReport) -> Vec<(u16, bool)> {
         changes(a, b)
+            .take(MOST_CHANGES)
             .filter_map(|change| {
                 evdev_code(change.usage).map(|code| (code, change.action == KeyAction::Press))
             })
@@ -514,6 +519,7 @@ mod tests {
     /// The changes as the usages the device sent, pressed or not.
     fn usages(a: &BootReport, b: &BootReport) -> Vec<(u8, bool)> {
         changes(a, b)
+            .take(MOST_CHANGES)
             .map(|change| (change.usage, change.action == KeyAction::Press))
             .collect()
     }
@@ -619,6 +625,7 @@ mod tests {
             for next in [report(0, &[usage]), BootReport::RELEASED] {
                 presses.extend(
                     changes(&state, &next)
+                        .take(MOST_CHANGES)
                         .filter(|change| change.action == KeyAction::Press)
                         .filter_map(|change| evdev_code(change.usage)),
                 );
@@ -671,7 +678,7 @@ mod tests {
     fn the_changes_iterator_knows_its_length_and_stays_done() {
         let mut all = changes(&report(0xff, &[4, 5, 6, 7, 8, 9]), &BootReport::RELEASED);
         assert_eq!(all.len(), 14);
-        assert_eq!(all.by_ref().count(), 14);
+        assert_eq!(all.by_ref().take(MOST_CHANGES).count(), 14);
         assert_eq!(all.len(), 0);
         assert_eq!(all.next(), None);
         let mut most = changes(
@@ -681,7 +688,7 @@ mod tests {
         assert_eq!(most.len(), 20);
         assert_eq!(most.next().map(|change| change.usage), Some(0xe0));
         assert_eq!(most.size_hint(), (19, Some(19)));
-        assert_eq!(most.count(), 19);
+        assert_eq!(most.take(MOST_CHANGES).count(), 19);
     }
 
     /// The constructor refuses what the parser refuses, and reads back what it was given.
