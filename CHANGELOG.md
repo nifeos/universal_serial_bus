@@ -24,6 +24,8 @@ sentence beside it.
 - Every fallible function documents its errors, every public function has an example, and the
   README is the crate page.
 - The package ships only the source, the README, the changelog and the licenses.
+- `Refusal` implements `Display` and `core::error::Error`, so a caller can print it or return it
+  through `?` into a boxed error.
 
 ## BUGS
 
