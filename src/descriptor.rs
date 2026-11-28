@@ -74,6 +74,38 @@ pub enum Refusal {
     },
 }
 
+/// One line in lower case with no closing period, naming the field a variant carries, so a caller
+/// can print the refusal on its own or after its own context.
+impl core::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Truncated => f.write_str("descriptor shorter than its fixed header"),
+            Self::NotThatDescriptor => f.write_str("not the descriptor that was asked for"),
+            Self::Malformed { at } => {
+                write!(
+                    f,
+                    "malformed descriptor at byte offset {at} of the configuration"
+                )
+            }
+            Self::NoBootKeyboard => f.write_str("no boot keyboard interface in the configuration"),
+            Self::NoInterruptIn { interface } => write!(
+                f,
+                "boot keyboard interface {interface} has no interrupt in endpoint"
+            ),
+            Self::PacketTooSmall {
+                maximum_packet_bytes,
+            } => write!(
+                f,
+                "interrupt endpoint packets of {maximum_packet_bytes} bytes cannot hold an \
+                 eight-byte boot report"
+            ),
+        }
+    }
+}
+
+/// A refusal wraps no other error, so `source` is `None`.
+impl core::error::Error for Refusal {}
+
 /// **The device descriptor**, the fields a driver uses from it. Only [`DeviceDescriptor::parse`]
 /// builds one, and a later release may add a field, so a pattern on it ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -543,6 +575,46 @@ pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Each refusal prints one lower-case line with its field, and is a `core::error::Error`.
+    #[test]
+    fn each_refusal_prints_its_own_line_and_is_an_error() {
+        extern crate std;
+        use std::string::ToString;
+        let cases = [
+            (
+                Refusal::Truncated,
+                "descriptor shorter than its fixed header",
+            ),
+            (
+                Refusal::NotThatDescriptor,
+                "not the descriptor that was asked for",
+            ),
+            (
+                Refusal::Malformed { at: 18 },
+                "malformed descriptor at byte offset 18 of the configuration",
+            ),
+            (
+                Refusal::NoBootKeyboard,
+                "no boot keyboard interface in the configuration",
+            ),
+            (
+                Refusal::NoInterruptIn { interface: 2 },
+                "boot keyboard interface 2 has no interrupt in endpoint",
+            ),
+            (
+                Refusal::PacketTooSmall {
+                    maximum_packet_bytes: 4,
+                },
+                "interrupt endpoint packets of 4 bytes cannot hold an eight-byte boot report",
+            ),
+        ];
+        for (refusal, message) in cases {
+            assert_eq!(refusal.to_string(), message);
+            let error: &dyn core::error::Error = &refusal;
+            assert!(error.source().is_none());
+        }
+    }
 
     /// QEMU's `usb-kbd` configuration, byte for byte as `hw/usb/dev-hid.c` builds it, which is the
     /// device the end-to-end gate types on.
