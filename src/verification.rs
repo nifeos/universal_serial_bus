@@ -15,8 +15,12 @@ use super::descriptor::{
 /// 25 bytes. At 24 the walk could never reach an endpoint descriptor, so the three assertions
 /// below were never evaluated and the harness proved only totality. Found by trying to
 /// falsify it: a walk that accepted an `OUT` endpoint stayed green.
+///
+/// **The unwind bound of 11** covers the longest walk: after the 9-byte header, 16 bytes hold at
+/// most eight descriptors of two bytes, and the call that ends the walk makes nine. Kani checks
+/// the bound, so a walk that needed more would fail the proof rather than pass it unchecked.
 #[kani::proof]
-#[kani::unwind(27)]
+#[kani::unwind(11)]
 fn the_configuration_walk_is_total_and_accepts_only_an_interrupt_in() {
     let bytes: [u8; 25] = kani::any();
     let len: usize = kani::any();
@@ -39,18 +43,19 @@ fn the_configuration_walk_is_total_and_accepts_only_an_interrupt_in() {
 /// the configuration and inside `wTotalLength`, its first byte is its own length, and an
 /// interface or endpoint descriptor holds its fixed layout, so a caller may index it by that
 /// layout. This is the guarantee every walk built on [`Descriptors`] reads by, including
-/// [`find_boot_keyboard`]. The bound of 25 bytes is the first harness's, for the same reason.
+/// [`find_boot_keyboard`]. The bound of 25 bytes and the unwind bound of 11 are the first
+/// harness's, for the same reasons.
 #[kani::proof]
-#[kani::unwind(27)]
+#[kani::unwind(11)]
 fn the_descriptor_walk_is_total_and_yields_whole_descriptors() {
     let bytes: [u8; 25] = kani::any();
     let len: usize = kani::any();
     kani::assume(len <= bytes.len());
     let configuration = &bytes[..len];
-    if let Ok(walk) = Descriptors::new(configuration) {
+    if let Ok(mut walk) = Descriptors::new(configuration) {
         let total = usize::from(walk.header().total_length);
         let mut end = usize::from(configuration[0]);
-        for descriptor in walk.flatten() {
+        while let Some(Ok(descriptor)) = walk.next() {
             let at = descriptor.as_ptr() as usize - configuration.as_ptr() as usize;
             assert!(at == end, "each descriptor starts where the last one ended");
             end = at + descriptor.len();
