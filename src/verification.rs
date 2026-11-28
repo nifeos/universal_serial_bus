@@ -1,8 +1,8 @@
 use super::Refusal;
-use super::boot_keyboard::{BootReport, changes};
+use super::boot_keyboard::{BootReport, KeyAction, changes};
 use super::descriptor::{
-    CLASS_HID, CONFIGURATION, ConfigurationHeader, DeviceDescriptor, ENDPOINT, INTERFACE,
-    PROTOCOL_KEYBOARD, SUBCLASS_BOOT, find_boot_keyboard,
+    CLASS_HID, CONFIGURATION, ConfigurationHeader, Descriptors, DeviceDescriptor, ENDPOINT,
+    INTERFACE, PROTOCOL_KEYBOARD, SUBCLASS_BOOT, find_boot_keyboard,
 };
 
 /// Falsification: replayable `falsifications/verification.the_configuration_walk_is_total_and_accepts_only_an_interrupt_in.patch`
@@ -15,8 +15,12 @@ use super::descriptor::{
 /// 25 bytes. At 24 the walk could never reach an endpoint descriptor, so the three assertions
 /// below were never evaluated and the harness proved only totality. Found by trying to
 /// falsify it: a walk that accepted an `OUT` endpoint stayed green.
+///
+/// **The unwind bound of 11** covers the longest walk: after the 9-byte header, 16 bytes hold at
+/// most eight descriptors of two bytes, and the call that ends the walk makes nine. Kani checks
+/// the bound, so a walk that needed more would fail the proof rather than pass it unchecked.
 #[kani::proof]
-#[kani::unwind(27)]
+#[kani::unwind(11)]
 fn the_configuration_walk_is_total_and_accepts_only_an_interrupt_in() {
     let bytes: [u8; 25] = kani::any();
     let len: usize = kani::any();
@@ -34,6 +38,46 @@ fn the_configuration_walk_is_total_and_accepts_only_an_interrupt_in() {
     kani::cover!(find_boot_keyboard(&bytes[..len]).is_ok());
 }
 
+/// Falsification: replayable `falsifications/verification.the_descriptor_walk_is_total_and_yields_whole_descriptors.patch`
+/// **The descriptor walk never panics, and every descriptor it yields is whole**: it lies inside
+/// the configuration and inside `wTotalLength`, its first byte is its own length, and an
+/// interface or endpoint descriptor holds its fixed layout, so a caller may index it by that
+/// layout. This is the guarantee every walk built on [`Descriptors`] reads by, including
+/// [`find_boot_keyboard`]. The bound of 25 bytes and the unwind bound of 11 are the first
+/// harness's, for the same reasons.
+#[kani::proof]
+#[kani::unwind(11)]
+fn the_descriptor_walk_is_total_and_yields_whole_descriptors() {
+    let bytes: [u8; 25] = kani::any();
+    let len: usize = kani::any();
+    kani::assume(len <= bytes.len());
+    let configuration = &bytes[..len];
+    if let Ok(mut walk) = Descriptors::new(configuration) {
+        let total = usize::from(walk.header().total_length);
+        let mut end = usize::from(configuration[0]);
+        while let Some(Ok(descriptor)) = walk.next() {
+            let at = descriptor.as_ptr() as usize - configuration.as_ptr() as usize;
+            assert!(at == end, "each descriptor starts where the last one ended");
+            end = at + descriptor.len();
+            assert!(
+                end <= len && end <= total,
+                "inside the buffer and the total"
+            );
+            assert!(descriptor.len() >= 2, "it holds its length and type");
+            assert!(
+                usize::from(descriptor[0]) == descriptor.len(),
+                "its first byte is its length"
+            );
+            let layout = match descriptor[1] {
+                INTERFACE => 9,
+                ENDPOINT => 7,
+                _ => 2,
+            };
+            assert!(descriptor.len() >= layout, "it holds its fixed layout");
+        }
+    }
+}
+
 /// Falsification: replayable `falsifications/verification.the_header_parsers_are_total.patch`
 /// **The device descriptor and configuration header parsers are total.**
 #[kani::proof]
@@ -49,13 +93,15 @@ fn the_header_parsers_are_total() {
 /// **Two reports a keystroke apart produce at most twenty events**: eight modifier changes and
 /// six releases and six presses at the very most, so a driver's fixed buffer cannot overflow.
 #[kani::proof]
-#[kani::unwind(10)]
+#[kani::unwind(22)]
 fn two_reports_produce_a_bounded_number_of_events() {
     let a: [u8; 8] = kani::any();
     let b: [u8; 8] = kani::any();
     if let (Some(a), Some(b)) = (BootReport::parse(&a), BootReport::parse(&b)) {
         let mut n = 0usize;
-        changes(&a, &b, &mut |_, _| n += 1);
+        for _ in changes(&a, &b) {
+            n += 1;
+        }
         assert!(n <= 20);
     }
 }
@@ -174,21 +220,22 @@ fn two_interfaces_are_walked_as_two() {
 /// documents. It does not prove the converse, that every usage which changed produces an event:
 /// a usage reported twice in one report produces one event by design, and the unit tests pin it.
 #[kani::proof]
-#[kani::unwind(10)]
+#[kani::unwind(22)]
 fn two_reports_produce_their_events_in_order() {
     let a: [u8; 8] = kani::any();
     let b: [u8; 8] = kani::any();
     let (Some(before), Some(after)) = (BootReport::parse(&a), BootReport::parse(&b)) else {
         return;
     };
-    // Each event is checked as it arrives, so no loop runs over the events afterwards: a loop of
-    // twenty would need an unwind of twenty-one, where every loop here runs at most eight times.
-    let flipped = before.modifiers ^ after.modifiers;
+    // Each event is checked as it arrives, so no loop runs over the events afterwards.
+    let flipped = before.modifiers() ^ after.modifiers();
     let modifier_events = flipped.count_ones() as usize;
     let mut n = 0usize;
     let mut next_bit = 0usize;
     let mut pressing = false;
-    changes(&before, &after, &mut |usage, pressed| {
+    for change in changes(&before, &after) {
+        let usage = change.usage;
+        let pressed = change.action == KeyAction::Press;
         if n < modifier_events {
             while next_bit < 8 && flipped & (1 << next_bit) == 0 {
                 next_bit += 1;
@@ -198,7 +245,7 @@ fn two_reports_produce_their_events_in_order() {
                 (usage, pressed)
                     == (
                         0xe0 + next_bit as u8,
-                        after.modifiers & (1 << next_bit) != 0
+                        after.modifiers() & (1 << next_bit) != 0
                     ),
                 "modifiers first"
             );
@@ -212,14 +259,14 @@ fn two_reports_produce_their_events_in_order() {
                 (&before, &after)
             };
             assert!(
-                from.keys
+                from.keys()
                     .iter()
-                    .any(|&u| u != 0 && !other.keys.contains(&u) && u == usage),
+                    .any(|&u| u != 0 && !other.keys().contains(&u) && u == usage),
                 "a usage held in exactly one report"
             );
         }
         n += 1;
-    });
+    }
     assert!(n >= modifier_events, "every flipped modifier has its event");
     assert!(n <= 20);
 }

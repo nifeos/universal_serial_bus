@@ -8,7 +8,7 @@ Expected to fail: the harness's `assert!(k.endpoint & 0x80 != 0, "an IN endpoint
 diff --git a/src/descriptor.rs b/src/descriptor.rs
 --- a/src/descriptor.rs
 +++ b/src/descriptor.rs
-@@ -281,7 +281,7 @@
+@@ -506,7 +506,7 @@
                  if let Some(interface) = candidate {
                      let endpoint_number_and_direction = d[2] & 0x8f;
                      let interrupt = d[3] & 0x3 == 0x3;

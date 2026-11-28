@@ -1,0 +1,22 @@
+Falsifies `usb::verification::the_descriptor_walk_is_total_and_yields_whole_descriptors`.
+
+The defect: the walk checks only that a descriptor holds its own length and type, and no longer
+that an interface or endpoint descriptor holds its fixed layout. A two-byte endpoint descriptor is
+then yielded whole by its own length, and a caller that indexes it by the endpoint layout reads
+past its end, into the next descriptor or out of the buffer.
+
+Expected to fail: the harness's "it holds its fixed layout" assertion.
+
+diff --git a/src/descriptor.rs b/src/descriptor.rs
+--- a/src/descriptor.rs
++++ b/src/descriptor.rs
+@@ -427,9 +427,6 @@
+             ENDPOINT => ENDPOINT_DESCRIPTOR_BYTES,
+             _ => 2,
+         };
+-        if len < layout {
+-            return self.malformed(at);
+-        }
+         self.at = at + len;
+         Some(Ok(&configuration[at..at + len]))
+     }

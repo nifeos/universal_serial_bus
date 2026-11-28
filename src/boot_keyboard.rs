@@ -57,13 +57,14 @@ const MODIFIER_CODES: [u16; 8] = [
     126, // 0xe7 Right GUI: KEY_RIGHTMETA
 ];
 
-/// **One boot report**: the modifier bitmap and the six key slots.
+/// **One boot report**: the modifier bitmap and the six key slots. Its fields are private, so every
+/// value is one [`BootReport::parse`] would accept: no key slot holds an error usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BootReport {
     /// Byte 0: one bit per modifier key, in the order of usages 0xe0 to 0xe7.
-    pub modifiers: u8,
+    modifiers: u8,
     /// Bytes 2..8: usage ids of the keys held, zero for an empty slot.
-    pub keys: [u8; 6],
+    keys: [u8; 6],
 }
 
 impl BootReport {
@@ -77,19 +78,89 @@ impl BootReport {
     /// (any slot holding [`ERROR_ROLL_OVER`] or the two other error usages, 2 and 3), which a
     /// driver must ignore rather than read as every key released. A buffer longer than eight bytes
     /// is accepted and its tail ignored.
+    ///
+    /// # Errors
+    ///
+    /// `None` when `bytes` holds fewer than [`REPORT_BYTES`] bytes, and for a phantom report.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::{BootReport, ERROR_ROLL_OVER};
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let report = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0])?; // left shift, usage 0x0b (h)
+    /// assert_eq!((report.modifiers(), report.keys()), (0x02, [0x0b, 0, 0, 0, 0, 0]));
+    /// assert_eq!(BootReport::parse(&[0, 0, ERROR_ROLL_OVER, 0, 0, 0, 0, 0]), None);
+    /// # Some(())
+    /// # }
+    /// ```
     pub fn parse(bytes: &[u8]) -> Option<BootReport> {
         if bytes.len() < REPORT_BYTES {
             return None;
         }
         let mut keys = [0u8; 6];
         keys.copy_from_slice(&bytes[2..8]);
+        BootReport::new(bytes[0], keys)
+    }
+
+    /// Build a report from its modifier bitmap and its six key slots, as a test of a caller's
+    /// driver feeds [`changes`]. `None` for what [`BootReport::parse`] refuses: a slot holding
+    /// [`ERROR_ROLL_OVER`] or the two other error usages, 2 and 3.
+    ///
+    /// # Errors
+    ///
+    /// `None` when a slot of `keys` holds 1, 2 or 3, the error usages.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// # fn main() {
+    /// #     assert!(example().is_some());
+    /// # }
+    /// # fn example() -> Option<()> {
+    /// let report = BootReport::new(0, [0x04, 0, 0, 0, 0, 0])?; // usage 0x04 (a)
+    /// assert_eq!(BootReport::parse(&[0, 0, 0x04, 0, 0, 0, 0, 0]), Some(report));
+    /// # Some(())
+    /// # }
+    /// ```
+    pub fn new(modifiers: u8, keys: [u8; 6]) -> Option<BootReport> {
         if keys.iter().any(|&k| (1..=3).contains(&k)) {
             return None;
         }
-        Some(BootReport {
-            modifiers: bytes[0],
-            keys,
-        })
+        Some(BootReport { modifiers, keys })
+    }
+
+    /// Byte 0: one bit per modifier key, in the order of usages 0xe0 to 0xe7.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// assert_eq!(BootReport::new(0x22, [0; 6]).map(|r| r.modifiers()), Some(0x22)); // both shifts
+    /// ```
+    pub fn modifiers(&self) -> u8 {
+        self.modifiers
+    }
+
+    /// Bytes 2 to 7: the usage ids of the keys held, zero for an empty slot, in the order the
+    /// device sent them, which promises nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use universal_serial_bus::boot_keyboard::BootReport;
+    ///
+    /// assert_eq!(BootReport::RELEASED.keys(), [0; 6]);
+    /// ```
+    pub fn keys(&self) -> [u8; 6] {
+        self.keys
     }
 
     fn holds(&self, usage: u8) -> bool {
@@ -100,43 +171,19 @@ impl BootReport {
 /// **Usage id to evdev code**, for the keyboard page's usages 0x04 through 0x8b: the main block,
 /// the function keys to F24, the navigation cluster, the keypad, the European and Japanese keys,
 /// and the editing and volume keys; and for the eight modifiers, 0xe0 to 0xe7. `None` for anything
-/// else, including 0 (no key), and for the four usages in the first range with no key (below). The module documentation names the sources.
+/// else, including 0 (no key), and for the four usages in the first range with no key (below).
+/// The module documentation names the sources.
 ///
-/// Most names match on their face (`F1` is `KEY_F1`); where they do not, the Usage Tables decide:
+#[doc = include_str!("evdev_code.md")]
 ///
-/// - 0x2a `DELETE (Backspace)` is `KEY_BACKSPACE` and 0x4c `Delete Forward` is `KEY_DELETE`, by
-///   footnotes 4 and 8: the first backs up the cursor, the second deletes in place.
-/// - 0xe3 and 0xe7, `Left GUI` and `Right GUI`, are `KEY_LEFTMETA` and `KEY_RIGHTMETA`, because
-///   footnotes 33 and 34 list the Sun Meta key among the GUI keys.
-/// - 0x64 `Non-US \ and |` is `KEY_102ND`, the 102nd key beside the left Shift by footnote 10, and
-///   0x65 `Application` is `KEY_COMPOSE`, named the Windows key and Compose by footnote 11.
-/// - 0x87 to 0x8b, `International1` to `International5`, are `KEY_RO`, `KEY_KATAKANAHIRAGANA`,
-///   `KEY_YEN`, `KEY_HENKAN` and `KEY_MUHENKAN`, the legends the Usage Tables' Japanese table
-///   gives them (ろ, ひらがな and カタカナ, ¥, 変換, 無変換).
+/// # Examples
 ///
-/// # This crate's choices
+/// ```
+/// use universal_serial_bus::boot_keyboard::evdev_code;
 ///
-/// The sources leave six things open, and this crate chose them:
-///
-/// - **Usage 0x32 (`Non-US # and ~`) is `KEY_BACKSLASH`.** The header has no key for it. The
-///   usage sits at Advanced Technology (AT) 101-key position 42, beside Return, and footnote 5 gives `\` and `|` as its
-///   United States (US) legends, so a US layout reads it as the backslash key.
-/// - **Usage 0x46 (`PrintScreen`) is `KEY_SYSRQ`.** The header's `KEY_PRINT` carries the comment
-///   `AC Print`, the Consumer page's print command, not a keyboard key. System Request is the
-///   function a personal computer (PC) keyboard puts on the Print Screen keycap.
-/// - **A usage named for two legends takes the first.** `Keypad Num Lock and Clear` (0x53) is
-///   `KEY_NUMLOCK`, and `Keypad 1 and End` (0x59) through `Keypad . and Delete` (0x63) are the
-///   keypad keys `KEY_KP1` through `KEY_KPDOT`. The second legend is what the key does in another
-///   mode, which the keymap decides, and the Usage Tables give Clear its own usages (0x9c, 0xd8).
-/// - **A usage whose only match is another page's key takes it.** `Power`, `Help`, `Stop`, `Undo`,
-///   `Cut`, `Copy`, `Paste` and `Find` (0x66, 0x75, 0x78, 0x7a to 0x7e) match only header names
-///   whose comments give a System Control, Application Launch or Consumer usage, and no keyboard
-///   key competes for them. `Keypad Equal Sign` (0x86, footnote 14) is `KEY_KPEQUAL`, as is
-///   `Keypad =` (0x67).
-/// - **0x74 `Execute` has no code.** No header name matches it.
-/// - **0x82 to 0x84, the locking Caps, Num and Scroll Lock, have no code.** Footnote 12 says each
-///   is held in the report while the lock is on, so a press and a release would toggle a keymap
-///   twice for one change. Keyboards are expected to send the non-locking keys (0x39, 0x53, 0x47).
+/// assert_eq!(evdev_code(0x04), Some(30)); // a is KEY_A
+/// assert_eq!(evdev_code(0x74), None); // Execute
+/// ```
 pub fn evdev_code(usage: u8) -> Option<u16> {
     if let Some(bit) = usage.checked_sub(FIRST_MODIFIER_USAGE) {
         return MODIFIER_CODES.get(usize::from(bit)).copied();
@@ -287,52 +334,157 @@ const CODE_BY_USAGE: [Option<u16>; 0x88] = [
     Some(94),  // 0x8b International5: KEY_MUHENKAN
 ];
 
-/// **What changed from `before` to `after`**, as `(usage, pressed)` calls to `event`, in the
-/// order that types correctly: every modifier change first, then the keys released, then the keys
-/// pressed. A modifier is its usage, 0xe0 for left control through 0xe7 for right GUI, so every
-/// event names a usage of the Keyboard/Keypad page, and [`evdev_code`] maps it to an evdev code.
-/// Shift and a letter arriving in one report must reach the keymap shift first, which is why
+/// **Whether a key went down or came up.** A later release may name another action, so a `match`
+/// on it ends in a wildcard arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyAction {
+    /// The key is held in the later report and was not in the earlier one.
+    Press,
+    /// The key was held in the earlier report and is not in the later one.
+    Release,
+}
+
+/// **One key that changed between two reports**: its usage on the Keyboard/Keypad page, and
+/// whether it went down or came up. Only [`changes`] builds one, and a later release may add a
+/// field, so a pattern on it ends in `..`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct KeyChange {
+    /// The key's usage id; a modifier is 0xe0 for left control through 0xe7 for right GUI.
+    pub usage: u8,
+    /// Whether it went down or came up.
+    pub action: KeyAction,
+}
+
+/// How many positions two reports are compared at: eight modifier bits, six release slots and
+/// six press slots. Each position yields at most one change, so this bounds the changes too.
+const CHANGE_POSITIONS: u8 = 20;
+
+/// **The changes between two reports, one at a time**, as [`changes`] returns them. It holds the
+/// two reports and one bit for each position that changed, so it borrows nothing, allocates
+/// nothing, and knows its length from the start.
+#[derive(Debug, Clone)]
+pub struct Changes {
+    before: BootReport,
+    after: BootReport,
+    /// One bit for each position still to yield: bits 0 to 7 are the modifier bits, 8 to 13 the
+    /// earlier report's slots (releases) and 14 to 19 the later report's (presses).
+    pending: u32,
+}
+
+impl Changes {
+    /// Whether the key at `position` changed.
+    fn has_changed_at(before: &BootReport, after: &BootReport, position: u8) -> bool {
+        if position < 8 {
+            return (before.modifiers ^ after.modifiers) & (1 << position) != 0;
+        }
+        // A key goes up when the earlier report holds it and the later one does not, and down
+        // the other way round. Only its first slot counts, so a usage a confused device reports
+        // twice changes once.
+        let (from, to, slot) = if position < 14 {
+            (before, after, usize::from(position - 8))
+        } else {
+            (after, before, usize::from(position - 14))
+        };
+        let usage = from.keys[slot];
+        usage != 0 && !to.holds(usage) && !from.keys[..slot].contains(&usage)
+    }
+
+    /// The change at `position`, which [`Changes::has_changed_at`] found changed.
+    fn at(&self, position: u8) -> KeyChange {
+        if position < 8 {
+            let action = if self.after.modifiers & (1 << position) != 0 {
+                KeyAction::Press
+            } else {
+                KeyAction::Release
+            };
+            return KeyChange {
+                usage: FIRST_MODIFIER_USAGE + position,
+                action,
+            };
+        }
+        if position < 14 {
+            KeyChange {
+                usage: self.before.keys[usize::from(position - 8)],
+                action: KeyAction::Release,
+            }
+        } else {
+            KeyChange {
+                usage: self.after.keys[usize::from(position - 14)],
+                action: KeyAction::Press,
+            }
+        }
+    }
+}
+
+impl Iterator for Changes {
+    type Item = KeyChange;
+
+    fn next(&mut self) -> Option<KeyChange> {
+        if self.pending == 0 {
+            return None;
+        }
+        // The lowest pending bit is below twenty, so it fits a u8.
+        let position = self.pending.trailing_zeros() as u8;
+        self.pending &= self.pending - 1;
+        Some(self.at(position))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let left = self.pending.count_ones() as usize;
+        (left, Some(left))
+    }
+}
+
+impl ExactSizeIterator for Changes {}
+
+impl core::iter::FusedIterator for Changes {}
+
+/// **What changed from `before` to `after`**, as an iterator of [`KeyChange`]s in the order that
+/// types correctly: every modifier change first, in bit order, then the keys released, then the
+/// keys pressed. A modifier is its usage, 0xe0 for left control through 0xe7 for right GUI, so
+/// every change names a usage of the Keyboard/Keypad page, and [`evdev_code`] maps it to an evdev
+/// code. Shift and a letter arriving in one report must reach the keymap shift first, which is why
 /// modifiers lead; a key released and another pressed in one report is a roll, and the release
 /// first is what a person did. Every usage the device reports is delivered, whether or not
 /// [`evdev_code`] knows it; the caller skips what it cannot map.
 ///
-/// At most twenty calls: eight modifiers, six releases, six presses.
+/// At most twenty changes: eight modifiers, six releases, six presses. A caller that wants a
+/// callback writes `changes(&before, &after).for_each(...)`.
 ///
 /// # Examples
 ///
-/// Shift and `h` arrive together in one report, so the shift press is delivered first:
+/// Shift and `h` arrive together in one report, so the shift press comes first:
 ///
 /// ```
-/// use universal_serial_bus::boot_keyboard::{BootReport, changes, evdev_code};
+/// use universal_serial_bus::boot_keyboard::{BootReport, KeyAction, changes, evdev_code};
 ///
-/// let before = BootReport::parse(&[0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
-/// let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0]).unwrap(); // left shift, usage 0x0b (h)
-/// let mut seen = Vec::new();
-/// changes(&before, &after, &mut |usage, pressed| seen.push((usage, pressed)));
-/// assert_eq!(seen, [(0xe1, true), (0x0b, true)]); // LeftShift, then h
+/// # fn main() {
+/// #     assert!(example().is_some());
+/// # }
+/// # fn example() -> Option<()> {
+/// let before = BootReport::RELEASED;
+/// let after = BootReport::parse(&[0x02, 0, 0x0b, 0, 0, 0, 0, 0])?; // left shift, usage 0x0b (h)
+/// let seen: Vec<(u8, KeyAction)> = changes(&before, &after)
+///     .map(|change| (change.usage, change.action))
+///     .collect();
+/// assert_eq!(seen, [(0xe1, KeyAction::Press), (0x0b, KeyAction::Press)]); // LeftShift, then h
 /// assert_eq!(evdev_code(0xe1), Some(42)); // KEY_LEFTSHIFT
+/// # Some(())
+/// # }
 /// ```
-pub fn changes(before: &BootReport, after: &BootReport, event: &mut dyn FnMut(u8, bool)) {
-    let flipped = before.modifiers ^ after.modifiers;
-    for bit in 0..8u8 {
-        if flipped & (1 << bit) != 0 {
-            event(
-                FIRST_MODIFIER_USAGE + bit,
-                after.modifiers & (1 << bit) != 0,
-            );
+pub fn changes(before: &BootReport, after: &BootReport) -> Changes {
+    let mut pending = 0;
+    for position in 0..CHANGE_POSITIONS {
+        if Changes::has_changed_at(before, after, position) {
+            pending |= 1 << position;
         }
     }
-    for (i, &usage) in before.keys.iter().enumerate() {
-        // `before.keys[..i]` so a usage a confused device reports twice is released once.
-        if usage != 0 && !after.holds(usage) && !before.keys[..i].contains(&usage) {
-            event(usage, false);
-        }
-    }
-    for (i, &usage) in after.keys.iter().enumerate() {
-        // `after.keys[..i]` so a usage a confused device reports twice is pressed once.
-        if usage != 0 && !before.holds(usage) && !after.keys[..i].contains(&usage) {
-            event(usage, true);
-        }
+    Changes {
+        before: *before,
+        after: *after,
+        pending,
     }
 }
 
@@ -350,22 +502,26 @@ mod tests {
         BootReport::parse(&b).unwrap()
     }
 
-    /// The events as evdev codes, the way a caller with an evdev keymap reads them.
+    /// One more than the twenty changes a pair of reports can hold. The test helpers read no
+    /// further, so an iterator that never ends fails a test instead of filling memory.
+    const MOST_CHANGES: usize = 21;
+
+    /// The changes as evdev codes, pressed or not, as a caller with an evdev keymap reads them.
     fn difference(a: &BootReport, b: &BootReport) -> Vec<(u16, bool)> {
-        let mut v = Vec::new();
-        changes(a, b, &mut |usage, p| {
-            if let Some(code) = evdev_code(usage) {
-                v.push((code, p));
-            }
-        });
-        v
+        changes(a, b)
+            .take(MOST_CHANGES)
+            .filter_map(|change| {
+                evdev_code(change.usage).map(|code| (code, change.action == KeyAction::Press))
+            })
+            .collect()
     }
 
-    /// The events as the usages the device sent.
+    /// The changes as the usages the device sent, pressed or not.
     fn usages(a: &BootReport, b: &BootReport) -> Vec<(u8, bool)> {
-        let mut v = Vec::new();
-        changes(a, b, &mut |usage, p| v.push((usage, p)));
-        v
+        changes(a, b)
+            .take(MOST_CHANGES)
+            .map(|change| (change.usage, change.action == KeyAction::Press))
+            .collect()
     }
 
     /// **`changes` speaks usages**: a modifier is 0xe0 to 0xe7 in bit order, and a usage with no
@@ -467,11 +623,12 @@ mod tests {
             0x08u8, 0x06, 0x0b, 0x12, 0x2c, 0x0b, 0x08, 0x0f, 0x0f, 0x12, 0x28,
         ] {
             for next in [report(0, &[usage]), BootReport::RELEASED] {
-                changes(&state, &next, &mut |usage, pressed| {
-                    if let (true, Some(code)) = (pressed, evdev_code(usage)) {
-                        presses.push(code);
-                    }
-                });
+                presses.extend(
+                    changes(&state, &next)
+                        .take(MOST_CHANGES)
+                        .filter(|change| change.action == KeyAction::Press)
+                        .filter_map(|change| evdev_code(change.usage)),
+                );
                 state = next;
             }
         }
@@ -514,6 +671,39 @@ mod tests {
     fn a_phantom_report_is_refused_rather_than_read_as_a_release() {
         assert_eq!(BootReport::parse(&[0, 0, 1, 1, 1, 1, 1, 1]), None);
         assert_eq!(BootReport::parse(&[0, 0, 0, 0]), None);
+    }
+
+    /// The iterator knows how many changes are left, and an exhausted one stays exhausted.
+    #[test]
+    fn the_changes_iterator_knows_its_length_and_stays_done() {
+        let mut all = changes(&report(0xff, &[4, 5, 6, 7, 8, 9]), &BootReport::RELEASED);
+        assert_eq!(all.len(), 14);
+        assert_eq!(all.by_ref().take(MOST_CHANGES).count(), 14);
+        assert_eq!(all.len(), 0);
+        assert_eq!(all.next(), None);
+        let mut most = changes(
+            &report(0x0f, &[4, 5, 6, 7, 8, 9]),
+            &report(0xf0, &[10, 11, 12, 13, 14, 15]),
+        );
+        assert_eq!(most.len(), 20);
+        assert_eq!(most.next().map(|change| change.usage), Some(0xe0));
+        assert_eq!(most.size_hint(), (19, Some(19)));
+        assert_eq!(most.take(MOST_CHANGES).count(), 19);
+    }
+
+    /// The constructor refuses what the parser refuses, and reads back what it was given.
+    #[test]
+    fn a_built_report_is_one_the_parser_would_accept() {
+        for error in 1..=3 {
+            assert_eq!(BootReport::new(0, [0, 0, error, 0, 0, 0]), None);
+        }
+        let built = BootReport::new(0x22, [0x04, 0, 0, 0, 0, 0x05]).unwrap();
+        assert_eq!(built.modifiers(), 0x22);
+        assert_eq!(built.keys(), [0x04, 0, 0, 0, 0, 0x05]);
+        assert_eq!(
+            Some(built),
+            BootReport::parse(&[0x22, 0xff, 0x04, 0, 0, 0, 0, 0x05])
+        );
     }
 
     /// A device that reports one usage in two slots presses it once.
