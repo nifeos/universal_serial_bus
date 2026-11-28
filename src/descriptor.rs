@@ -42,7 +42,7 @@ pub const PROTOCOL_KEYBOARD: u8 = 1;
 /// arm and a pattern on a variant's fields ends in `..`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum Refusal {
+pub enum DescriptorError {
     /// Fewer bytes than the descriptor's fixed header needs.
     Truncated,
     /// The bytes are not the descriptor they were asked for: the wrong type, or a length field
@@ -50,11 +50,11 @@ pub enum Refusal {
     NotThatDescriptor,
     /// A descriptor inside a configuration has a length of zero or one, runs past the end of
     /// what the device sent, or is an interface or endpoint descriptor too short for its layout.
-    /// `at` is its byte offset, for the bench transcript.
+    /// `offset` is its byte offset, for the bench transcript.
     #[non_exhaustive]
     Malformed {
         /// Byte offset of the bad descriptor within the configuration.
-        at: u16,
+        offset: u16,
     },
     /// The configuration has no interface of class 3, subclass 1, protocol 1. The device is not a
     /// keyboard, or is one that does not offer the boot protocol.
@@ -76,15 +76,15 @@ pub enum Refusal {
 
 /// One line in lower case with no closing period, naming the field a variant carries, so a caller
 /// can print the refusal on its own or after its own context.
-impl core::fmt::Display for Refusal {
+impl core::fmt::Display for DescriptorError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Truncated => f.write_str("descriptor shorter than its fixed header"),
             Self::NotThatDescriptor => f.write_str("not the descriptor that was asked for"),
-            Self::Malformed { at } => {
+            Self::Malformed { offset } => {
                 write!(
                     f,
-                    "malformed descriptor at byte offset {at} of the configuration"
+                    "malformed descriptor at byte offset {offset} of the configuration"
                 )
             }
             Self::NoBootKeyboard => f.write_str("no boot keyboard interface in the configuration"),
@@ -104,7 +104,7 @@ impl core::fmt::Display for Refusal {
 }
 
 /// A refusal wraps no other error, so `source` is `None`.
-impl core::error::Error for Refusal {}
+impl core::error::Error for DescriptorError {}
 
 /// **The device descriptor**, the fields a driver uses from it. Only [`DeviceDescriptor::parse`]
 /// builds one, and a later release may add a field, so a pattern on it ends in `..`.
@@ -147,37 +147,37 @@ pub struct DeviceDescriptor {
 }
 
 impl DeviceDescriptor {
-    /// Parse a device descriptor. [`Refusal::Truncated`] for fewer than [`DEVICE_DESCRIPTOR_BYTES`]
-    /// bytes, and [`Refusal::NotThatDescriptor`] for the wrong type or a `bLength` shorter than
-    /// the layout.
+    /// Parse a device descriptor. [`DescriptorError::Truncated`] for fewer than
+    /// [`DEVICE_DESCRIPTOR_BYTES`] bytes, and [`DescriptorError::NotThatDescriptor`] for the wrong
+    /// type or a `bLength` shorter than the layout.
     ///
     /// # Errors
     ///
-    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`DEVICE_DESCRIPTOR_BYTES`] bytes, and
-    /// [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`DEVICE`] or `bLength` is
-    /// shorter than the layout.
+    /// [`DescriptorError::Truncated`] when `bytes` holds fewer than [`DEVICE_DESCRIPTOR_BYTES`]
+    /// bytes, and [`DescriptorError::NotThatDescriptor`] when `bDescriptorType` is not [`DEVICE`]
+    /// or `bLength` is shorter than the layout.
     ///
     /// # Examples
     ///
     /// ```
-    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::DescriptorError;
     /// use universal_serial_bus::descriptor::DeviceDescriptor;
     ///
-    /// fn main() -> Result<(), Refusal> {
+    /// fn main() -> Result<(), DescriptorError> {
     ///     // A USB 2.0 device, vendor 0x0627, product 0x0001, a 64-byte control endpoint.
     ///     let bytes = [18, 1, 0, 2, 0, 0, 0, 64, 0x27, 0x06, 1, 0, 0, 0, 1, 2, 3, 1];
     ///     let device = DeviceDescriptor::parse(&bytes)?;
     ///     assert_eq!((device.vendor, device.product), (0x0627, 0x0001));
-    ///     assert_eq!(DeviceDescriptor::parse(&bytes[..8]), Err(Refusal::Truncated));
+    ///     assert_eq!(DeviceDescriptor::parse(&bytes[..8]), Err(DescriptorError::Truncated));
     ///     Ok(())
     /// }
     /// ```
-    pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, Refusal> {
+    pub fn parse(bytes: &[u8]) -> Result<DeviceDescriptor, DescriptorError> {
         if bytes.len() < DEVICE_DESCRIPTOR_BYTES {
-            return Err(Refusal::Truncated);
+            return Err(DescriptorError::Truncated);
         }
         if (bytes[0] as usize) < DEVICE_DESCRIPTOR_BYTES || bytes[1] != DEVICE {
-            return Err(Refusal::NotThatDescriptor);
+            return Err(DescriptorError::NotThatDescriptor);
         }
         Ok(DeviceDescriptor {
             usb_release_binary_coded_decimal: u16::from_le_bytes([bytes[2], bytes[3]]),
@@ -279,28 +279,28 @@ impl ConfigurationHeader {
     ///
     /// # Errors
     ///
-    /// [`Refusal::Truncated`] when `bytes` holds fewer than [`CONFIGURATION_HEADER_BYTES`] bytes,
-    /// and [`Refusal::NotThatDescriptor`] when `bDescriptorType` is not [`CONFIGURATION`] or
-    /// `bLength` is shorter than the header.
+    /// [`DescriptorError::Truncated`] when `bytes` holds fewer than [`CONFIGURATION_HEADER_BYTES`]
+    /// bytes, and [`DescriptorError::NotThatDescriptor`] when `bDescriptorType` is not
+    /// [`CONFIGURATION`] or `bLength` is shorter than the header.
     ///
     /// # Examples
     ///
     /// ```
-    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::DescriptorError;
     /// use universal_serial_bus::descriptor::ConfigurationHeader;
     ///
-    /// fn main() -> Result<(), Refusal> {
+    /// fn main() -> Result<(), DescriptorError> {
     ///     let header = ConfigurationHeader::parse(&[9, 2, 34, 0, 1, 1, 0, 0xa0, 50])?;
     ///     assert_eq!((header.total_length, header.interfaces, header.value), (34, 1, 1));
     ///     Ok(())
     /// }
     /// ```
-    pub fn parse(bytes: &[u8]) -> Result<ConfigurationHeader, Refusal> {
+    pub fn parse(bytes: &[u8]) -> Result<ConfigurationHeader, DescriptorError> {
         if bytes.len() < CONFIGURATION_HEADER_BYTES {
-            return Err(Refusal::Truncated);
+            return Err(DescriptorError::Truncated);
         }
         if (bytes[0] as usize) < CONFIGURATION_HEADER_BYTES || bytes[1] != CONFIGURATION {
-            return Err(Refusal::NotThatDescriptor);
+            return Err(DescriptorError::NotThatDescriptor);
         }
         Ok(ConfigurationHeader {
             total_length: u16::from_le_bytes([bytes[2], bytes[3]]),
@@ -345,7 +345,7 @@ pub struct BootKeyboard {
 /// it yields holds at least its own two bytes of length and type, and an interface or endpoint
 /// descriptor holds at least its fixed layout. A descriptor that breaks that (a length of 0 or 1,
 /// one that runs past `wTotalLength`, or an interface or endpoint too short for its layout) is
-/// yielded as [`Refusal::Malformed`] with its offset, and the walk ends there.
+/// yielded as [`DescriptorError::Malformed`] with its offset, and the walk ends there.
 #[derive(Debug, Clone)]
 pub struct Descriptors<'a> {
     configuration: &'a [u8],
@@ -362,20 +362,20 @@ impl<'a> Descriptors<'a> {
     ///
     /// # Errors
     ///
-    /// What [`ConfigurationHeader::parse`] refuses: [`Refusal::Truncated`] for fewer than
-    /// [`CONFIGURATION_HEADER_BYTES`] bytes, and [`Refusal::NotThatDescriptor`] for bytes that are
-    /// not a configuration header. A descriptor beneath the header that is malformed is not refused
-    /// here; the walk yields [`Refusal::Malformed`] when it reaches it.
+    /// What [`ConfigurationHeader::parse`] refuses: [`DescriptorError::Truncated`] for fewer than
+    /// [`CONFIGURATION_HEADER_BYTES`] bytes, and [`DescriptorError::NotThatDescriptor`] for bytes
+    /// that are not a configuration header. A descriptor beneath the header that is malformed is
+    /// not refused here; the walk yields [`DescriptorError::Malformed`] when it reaches it.
     ///
     /// # Examples
     ///
     /// A caller looking for something other than a keyboard, here every endpoint address:
     ///
     /// ```
-    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::DescriptorError;
     /// use universal_serial_bus::descriptor::{Descriptors, ENDPOINT};
     ///
-    /// fn main() -> Result<(), Refusal> {
+    /// fn main() -> Result<(), DescriptorError> {
     ///     let configuration = [
     ///         9, 2, 25, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 25 bytes
     ///         9, 4, 0, 0, 1, 3, 1, 2, 0, // interface 0: HID, boot, mouse
@@ -392,7 +392,7 @@ impl<'a> Descriptors<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(configuration: &'a [u8]) -> Result<Descriptors<'a>, Refusal> {
+    pub fn new(configuration: &'a [u8]) -> Result<Descriptors<'a>, DescriptorError> {
         let header = ConfigurationHeader::parse(configuration)?;
         Ok(Descriptors {
             configuration,
@@ -407,10 +407,10 @@ impl<'a> Descriptors<'a> {
     /// # Examples
     ///
     /// ```
-    /// use universal_serial_bus::Refusal;
+    /// use universal_serial_bus::DescriptorError;
     /// use universal_serial_bus::descriptor::Descriptors;
     ///
-    /// fn main() -> Result<(), Refusal> {
+    /// fn main() -> Result<(), DescriptorError> {
     ///     let walk = Descriptors::new(&[9, 2, 9, 0, 0, 1, 0, 0x80, 50])?;
     ///     assert_eq!(walk.header().value, 1);
     ///     assert_eq!(walk.count(), 0); // a header with nothing beneath it
@@ -422,18 +422,18 @@ impl<'a> Descriptors<'a> {
     }
 
     /// End the walk with a refusal naming the descriptor at `at`.
-    fn malformed(&mut self, at: usize) -> Option<Result<&'a [u8], Refusal>> {
+    fn malformed(&mut self, at: usize) -> Option<Result<&'a [u8], DescriptorError>> {
         self.done = true;
-        Some(Err(Refusal::Malformed {
-            at: u16::try_from(at).unwrap_or(u16::MAX),
+        Some(Err(DescriptorError::Malformed {
+            offset: u16::try_from(at).unwrap_or(u16::MAX),
         }))
     }
 }
 
 impl<'a> Iterator for Descriptors<'a> {
-    type Item = Result<&'a [u8], Refusal>;
+    type Item = Result<&'a [u8], DescriptorError>;
 
-    fn next(&mut self) -> Option<Result<&'a [u8], Refusal>> {
+    fn next(&mut self) -> Option<Result<&'a [u8], DescriptorError>> {
         let configuration = self.configuration;
         let total = usize::from(self.header.total_length);
         let end = configuration.len().min(total);
@@ -472,28 +472,28 @@ impl core::iter::FusedIterator for Descriptors<'_> {}
 /// **Find the boot keyboard in a configuration**: the first interface (alternate setting 0) of
 /// class 3, subclass 1, protocol 1, and the first interrupt `IN` endpoint beneath it.
 ///
-/// `configuration` is as the device sent it, possibly cut short by the buffer it was read into, and
-/// the walk is [`Descriptors`]', with its bounds and refusals. It answers at the first keyboard
-/// endpoint, so a later defect, common in cheap devices, is never read.
+/// The walk over `configuration`, possibly cut short, is [`Descriptors`]'. It answers at the first
+/// keyboard endpoint, so a later defect, common in cheap devices, is never read.
 ///
 /// # Errors
 ///
-/// What [`Descriptors`] refuses: [`Refusal::Truncated`] or [`Refusal::NotThatDescriptor`] for the
-/// header, and [`Refusal::Malformed`] for a descriptor the walk reaches before a keyboard endpoint.
-/// Then, when the walk ends with no keyboard endpoint: [`Refusal::PacketTooSmall`] when a boot
-/// keyboard's interrupt `IN` endpoint was refused for its packet size, [`Refusal::NoInterruptIn`]
-/// when a boot keyboard interface had no interrupt `IN` endpoint, and [`Refusal::NoBootKeyboard`]
-/// when no interface was a boot keyboard.
+/// What [`Descriptors`] refuses: [`DescriptorError::Truncated`] or
+/// [`DescriptorError::NotThatDescriptor`] for the header, and [`DescriptorError::Malformed`] for a
+/// descriptor the walk reaches before a keyboard endpoint. Then, when the walk ends with no
+/// keyboard endpoint: [`DescriptorError::PacketTooSmall`] when a boot keyboard's interrupt `IN`
+/// endpoint was refused for its packet size, [`DescriptorError::NoInterruptIn`] when a boot
+/// keyboard interface had no interrupt `IN` endpoint, and [`DescriptorError::NoBootKeyboard`] when
+/// no interface was a boot keyboard.
 ///
 /// # Examples
 ///
 /// A boot keyboard's configuration as QEMU's `usb-kbd` reports it, trimmed to what matters:
 ///
 /// ```
-/// use universal_serial_bus::Refusal;
+/// use universal_serial_bus::DescriptorError;
 /// use universal_serial_bus::descriptor::find_boot_keyboard;
 ///
-/// # fn main() -> Result<(), Refusal> {
+/// # fn main() -> Result<(), DescriptorError> {
 /// let configuration = [
 ///     9, 2, 34, 0, 1, 1, 0, 0xa0, 50, // configuration 1, 34 bytes, one interface
 ///     9, 4, 0, 0, 1, 3, 1, 1, 0, // interface 0: HID, boot, keyboard, one endpoint
@@ -509,7 +509,7 @@ impl core::iter::FusedIterator for Descriptors<'_> {}
 /// # Ok(())
 /// # }
 /// ```
-pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal> {
+pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, DescriptorError> {
     let descriptors = Descriptors::new(configuration)?;
     let header = descriptors.header();
 
@@ -562,13 +562,13 @@ pub fn find_boot_keyboard(configuration: &[u8]) -> Result<BootKeyboard, Refusal>
         }
     }
     if let Some(maximum_packet_bytes) = too_small {
-        return Err(Refusal::PacketTooSmall {
+        return Err(DescriptorError::PacketTooSmall {
             maximum_packet_bytes,
         });
     }
     match candidate.or(without_endpoint) {
-        Some(interface) => Err(Refusal::NoInterruptIn { interface }),
-        None => Err(Refusal::NoBootKeyboard),
+        Some(interface) => Err(DescriptorError::NoInterruptIn { interface }),
+        None => Err(DescriptorError::NoBootKeyboard),
     }
 }
 
@@ -583,27 +583,27 @@ mod tests {
         use std::string::ToString;
         let cases = [
             (
-                Refusal::Truncated,
+                DescriptorError::Truncated,
                 "descriptor shorter than its fixed header",
             ),
             (
-                Refusal::NotThatDescriptor,
+                DescriptorError::NotThatDescriptor,
                 "not the descriptor that was asked for",
             ),
             (
-                Refusal::Malformed { at: 18 },
+                DescriptorError::Malformed { offset: 18 },
                 "malformed descriptor at byte offset 18 of the configuration",
             ),
             (
-                Refusal::NoBootKeyboard,
+                DescriptorError::NoBootKeyboard,
                 "no boot keyboard interface in the configuration",
             ),
             (
-                Refusal::NoInterruptIn { interface: 2 },
+                DescriptorError::NoInterruptIn { interface: 2 },
                 "boot keyboard interface 2 has no interrupt in endpoint",
             ),
             (
-                Refusal::PacketTooSmall {
+                DescriptorError::PacketTooSmall {
                     maximum_packet_bytes: 4,
                 },
                 "interrupt endpoint packets of 4 bytes cannot hold an eight-byte boot report",
@@ -682,11 +682,12 @@ mod tests {
         ];
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::NoBootKeyboard)
+            Err(DescriptorError::NoBootKeyboard)
         );
     }
 
-    /// An endpoint in the direction `OUT`, host to device, or a bulk one, under a keyboard interface is not where reports arrive.
+    /// An endpoint in the direction `OUT`, host to device, or a bulk one, under a keyboard
+    /// interface is not where reports arrive.
     #[test]
     fn only_an_interrupt_in_endpoint_counts() {
         let configuration = [
@@ -697,7 +698,7 @@ mod tests {
         ];
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::NoInterruptIn { interface: 0 })
+            Err(DescriptorError::NoInterruptIn { interface: 0 })
         );
     }
 
@@ -709,7 +710,7 @@ mod tests {
         configuration[29] = 0x80; // bEndpointAddress: IN, number 0
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::NoInterruptIn { interface: 0 })
+            Err(DescriptorError::NoInterruptIn { interface: 0 })
         );
     }
 
@@ -721,13 +722,13 @@ mod tests {
         configuration[9] = 0; // the interface descriptor's bLength
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::Malformed { at: 9 })
+            Err(DescriptorError::Malformed { offset: 9 })
         );
         let mut configuration = QEMU_USB_KEYBOARD;
         configuration[27] = 200; // the endpoint descriptor claims to run far past the end
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::Malformed { at: 27 })
+            Err(DescriptorError::Malformed { offset: 27 })
         );
     }
 
@@ -750,11 +751,11 @@ mod tests {
         assert!(find_boot_keyboard(&configuration).is_ok());
         assert_eq!(
             find_boot_keyboard(&configuration[..20]),
-            Err(Refusal::NoInterruptIn { interface: 0 })
+            Err(DescriptorError::NoInterruptIn { interface: 0 })
         );
         assert_eq!(
             find_boot_keyboard(&configuration[..4]),
-            Err(Refusal::Truncated)
+            Err(DescriptorError::Truncated)
         );
     }
 
@@ -779,12 +780,15 @@ mod tests {
             ),
             (1, 4, 11)
         );
-        assert_eq!(DeviceDescriptor::parse(&d[..8]), Err(Refusal::Truncated));
+        assert_eq!(
+            DeviceDescriptor::parse(&d[..8]),
+            Err(DescriptorError::Truncated)
+        );
         let mut wrong = d;
         wrong[1] = CONFIGURATION;
         assert_eq!(
             DeviceDescriptor::parse(&wrong),
-            Err(Refusal::NotThatDescriptor)
+            Err(DescriptorError::NotThatDescriptor)
         );
     }
 
@@ -796,7 +800,10 @@ mod tests {
             18, 1, 0x00, 0x02, 0, 0, 0, 8, 0x27, 0x06, 0x01, 0x00, 0, 0, 1, 4, 11, 1,
         ];
         d[0] = 17;
-        assert_eq!(DeviceDescriptor::parse(&d), Err(Refusal::NotThatDescriptor));
+        assert_eq!(
+            DeviceDescriptor::parse(&d),
+            Err(DescriptorError::NotThatDescriptor)
+        );
         d[0] = 20;
         assert!(DeviceDescriptor::parse(&d).is_ok());
     }
@@ -812,7 +819,7 @@ mod tests {
         short[0] = 8;
         assert_eq!(
             ConfigurationHeader::parse(&short),
-            Err(Refusal::NotThatDescriptor)
+            Err(DescriptorError::NotThatDescriptor)
         );
         let mut long = QEMU_USB_KEYBOARD;
         long[0] = 10;
@@ -821,7 +828,7 @@ mod tests {
         other[1] = INTERFACE;
         assert_eq!(
             ConfigurationHeader::parse(&other),
-            Err(Refusal::NotThatDescriptor)
+            Err(DescriptorError::NotThatDescriptor)
         );
     }
 
@@ -862,7 +869,7 @@ mod tests {
         ];
         assert_eq!(
             find_boot_keyboard(&short_interface),
-            Err(Refusal::Malformed { at: 18 })
+            Err(DescriptorError::Malformed { offset: 18 })
         );
         let short_endpoint = [
             9, 2, 29, 0, 1, 1, 0, 0xa0, 50, //
@@ -871,7 +878,7 @@ mod tests {
         ];
         assert_eq!(
             find_boot_keyboard(&short_endpoint),
-            Err(Refusal::Malformed { at: 18 })
+            Err(DescriptorError::Malformed { offset: 18 })
         );
     }
 
@@ -887,7 +894,7 @@ mod tests {
         ];
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::NoInterruptIn { interface: 0 })
+            Err(DescriptorError::NoInterruptIn { interface: 0 })
         );
     }
 
@@ -904,7 +911,7 @@ mod tests {
         assert_eq!(walk.next(), None);
         assert_eq!(
             Descriptors::new(&QEMU_USB_KEYBOARD[..4]).err(),
-            Some(Refusal::Truncated)
+            Some(DescriptorError::Truncated)
         );
     }
 
@@ -915,7 +922,10 @@ mod tests {
         configuration[18] = 1;
         let mut walk = Descriptors::new(&configuration).unwrap();
         assert!(matches!(walk.next(), Some(Ok(_))));
-        assert_eq!(walk.next(), Some(Err(Refusal::Malformed { at: 18 })));
+        assert_eq!(
+            walk.next(),
+            Some(Err(DescriptorError::Malformed { offset: 18 }))
+        );
         assert_eq!(walk.next(), None);
         let cut = Descriptors::new(&QEMU_USB_KEYBOARD[..30]).unwrap();
         assert_eq!(cut.count(), 2);
@@ -939,7 +949,10 @@ mod tests {
         configuration[2] = 12;
         configuration[9..].copy_from_slice(&[3, ENDPOINT, 0x81]);
         let mut walk = Descriptors::new(&configuration).unwrap();
-        assert_eq!(walk.next(), Some(Err(Refusal::Malformed { at: 9 })));
+        assert_eq!(
+            walk.next(),
+            Some(Err(DescriptorError::Malformed { offset: 9 }))
+        );
     }
 
     /// The reserved bits of `bEndpointAddress` do not reach the caller.
@@ -977,7 +990,7 @@ mod tests {
         configuration[31] = 4; // wMaxPacketSize
         assert_eq!(
             find_boot_keyboard(&configuration),
-            Err(Refusal::PacketTooSmall {
+            Err(DescriptorError::PacketTooSmall {
                 maximum_packet_bytes: 4
             })
         );
