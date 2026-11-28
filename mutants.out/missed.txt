@@ -1,2 +1,0 @@
-src/descriptor.rs:409:32: replace > with >= in <impl Iterator for Descriptors<'a>>::next
-src/descriptor.rs:425:45: replace + with * in <impl Iterator for Descriptors<'a>>::next
